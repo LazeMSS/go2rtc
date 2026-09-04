@@ -4,142 +4,78 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>log - go2rtc</title>
-    <style>
-        main > div {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        table tbody {
-            font-size: 13px;
-        }
-
-        .trace {
-            color: #585858 !important;
-        }
-
-        .debug {
-            color: #808080 !important;
-        }
-
-        .info {
-            color: #0174DF !important;
-        }
-
-        .warn {
-            color: #FF9966 !important;
-        }
-
-        .error {
-            color: #DF0101 !important;
-        }
-    </style>
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<script src="main.js"></script>
+<script src="js/main.js"></script>
 
-<main>
-    <div>
-        <button id="clean">Clean</button>
-        <button id="update">Auto Update: ON</button>
-        <button id="reverse">Reverse Log Order: OFF</button>
+<main class="config-page-layout">
+    <div class="toolbar-card config-toolbar">
+        <div class="toolbar-left">
+            <div class="config-header-title">
+                <svg class="config-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                <span>System Logs</span>
+            </div>
+            <span class="badge badge-online" id="auto-badge"><span class="pulse-indicator"></span>Live Stream</span>
+            <span class="badge badge-idle" id="log-count">0 Lines</span>
+            <span class="badge badge-idle hidden" id="log-filtered-count">0 Shown</span>
+        </div>
+
+        <div class="toolbar-right">
+            <button id="autoscroll" class="btn btn-secondary btn-sm" title="Toggle sticky auto-scroll to bottom">
+                <svg viewBox="0 0 24 24"><path d="M11 4h2v12l4-4 1.41 1.41L12 20l-6.41-6.59L7 12l4 4V4z"/></svg>
+                <span id="autoscroll-text">Auto-Scroll: ON</span>
+            </button>
+            <button id="clean" class="btn btn-secondary btn-sm" title="Clear log buffer">
+                <svg viewBox="0 0 24 24"><path d="M19 4h-3.5l-1-1h-5l-1 1H5v2h14V4zM6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z"/></svg>
+                <span id="clean-text">Clear Logs</span>
+            </button>
+            <button id="reverse" class="btn btn-secondary btn-sm" title="Toggle chronological or reverse order">
+                <svg viewBox="0 0 24 24"><path d="M9 3L5 6.99h3V14h2V6.99h3L9 3zm7 14.01V10h-2v7.01h-3L15 21l4-3.99h-3z"/></svg>
+                <span id="reverse-text">Order: Newest Last</span>
+            </button>
+            <button id="update" class="btn btn-primary btn-sm" title="Pause or resume live log stream">
+                <svg class="icon-pause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                <svg class="icon-play hidden" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                <span id="update-text">Stream: Live</span>
+            </button>
+        </div>
     </div>
-    <table>
-        <thead>
-        <tr>
-            <th style="width: 100px">Time</th>
-            <th style="width: 40px">Level</th>
-            <th>Message</th>
-        </tr>
-        </thead>
-        <tbody id="log">
-        </tbody>
-    </table>
+
+    <!-- Real-time Filter Bar -->
+    <div class="toolbar-card log-filter-bar">
+        <div class="log-search-wrap">
+            <svg class="log-search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <input type="search" id="log-search" class="log-search-input" placeholder="Search logs (message, module, parameters)..." autocomplete="off" spellcheck="false" />
+            <button type="button" id="log-search-clear" class="log-search-clear hidden" title="Clear search">✕</button>
+        </div>
+        <div class="log-level-filters" id="level-filters">
+            <button type="button" class="level-pill active" data-level="all">All</button>
+            <button type="button" class="level-pill" data-level="error">Error</button>
+            <button type="button" class="level-pill" data-level="warn">Warn</button>
+            <button type="button" class="level-pill" data-level="info">Info</button>
+            <button type="button" class="level-pill" data-level="debug">Debug</button>
+            <button type="button" class="level-pill" data-level="trace">Trace</button>
+        </div>
+    </div>
+
+    <div class="log-table-wrapper" id="log-wrapper">
+        <table class="log-table">
+            <thead>
+                <tr>
+                    <th class="col-time">Time</th>
+                    <th class="col-level">Level</th>
+                    <th>Message</th>
+                </tr>
+            </thead>
+            <tbody id="log">
+            </tbody>
+        </table>
+    </div>
 </main>
 
-<script>
-    document.getElementById('clean').addEventListener('click', async () => {
-        const r = await fetch('api/log', {method: 'DELETE'});
-        if (r.ok) reload();
-        alert(await r.text());
-    });
-
-    // Sanitizes the input text to prevent XSS when inserting into the DOM
-    function escapeHTML(text) {
-        return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;')
-            .replace(/\n/g, '<br>');
-    }
-
-    const reverseBtn = document.getElementById('reverse');
-    const update = document.getElementById('update');
-
-    let reverseOrder = false;
-    let autoUpdateEnabled = true;
-
-    reverseBtn.textContent = `Reverse Log Order: ${reverseOrder ? 'ON' : 'OFF'}`;
-    update.textContent = `Auto Update: ${autoUpdateEnabled ? 'ON' : 'OFF'}`;
-
-    function applyLogStyling(jsonlines) {
-        const KEYS = ['time', 'level', 'message'];
-        let lines = JSON.parse('[' + jsonlines.trimEnd().replaceAll('\n', ',') + ']');
-        if (reverseOrder) {
-            lines = lines.reverse();
-        }
-        return lines.map(line => {
-            const ts = new Date(line['time']).toLocaleString(undefined, {
-                hour: 'numeric',
-                minute: 'numeric',
-                second: 'numeric',
-                fractionalSecondDigits: 3
-            });
-            const msg = Object.keys(line).reduce((msg, key) => {
-                return KEYS.indexOf(key) < 0 ? `${msg} ${key}=${line[key]}` : msg;
-            }, line['message']);
-            return `<tr class="${line['level']}"><td>${ts}</td><td>${line['level']}</td><td>${escapeHTML(msg)}</td></tr>`;
-        }).join('');
-    }
-
-    function reload() {
-        const url = new URL('api/log', location.href);
-        fetch(url, {cache: 'no-cache'})
-            .then(response => response.text())
-            .then(data => {
-                // Apply styling to the log data
-                document.getElementById('log').innerHTML = applyLogStyling(data);
-            })
-            .catch(error => {
-                console.error('An error occurred:', error);
-            });
-    }
-
-    reload();
-
-    update.textContent = `Auto Update: ${autoUpdateEnabled ? 'ON' : 'OFF'}`;
-    update.addEventListener('click', () => {
-        autoUpdateEnabled = !autoUpdateEnabled;
-        update.textContent = `Auto Update: ${autoUpdateEnabled ? 'ON' : 'OFF'}`;
-    });
-
-    // Toggle log order
-    reverseBtn.textContent = `Reverse Log Order: ${reverseOrder ? 'ON' : 'OFF'}`;
-    reverseBtn.addEventListener('click', () => {
-        reverseOrder = !reverseOrder;
-        reverseBtn.textContent = `Reverse Log Order: ${reverseOrder ? 'ON' : 'OFF'}`;
-        reload(); // Reload logs to apply the new order
-    });
-
-    // Reload the logs every 5 seconds
-    setInterval(() => {
-        if (autoUpdateEnabled) reload();
-    }, 5000);
-</script>
-
+<script src="js/log.js"></script>
 </body>
 </html>

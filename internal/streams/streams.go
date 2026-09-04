@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/AlexxIT/go2rtc/internal/api"
+	"github.com/AlexxIT/go2rtc/internal/api/ws"
 	"github.com/AlexxIT/go2rtc/internal/app"
 	"github.com/rs/zerolog"
 )
@@ -28,8 +29,11 @@ func Init() {
 
 	api.HandleFunc("api/streams", apiStreams)
 	api.HandleFunc("api/streams.dot", apiStreamsDOT)
+	api.HandleFunc("api/events", apiEvents)
 	api.HandleFunc("api/preload", apiPreload)
 	api.HandleFunc("api/schemes", apiSchemes)
+
+	ws.HandleFunc("streams", wsStreamsHandler)
 
 	if cfg.Publish == nil && cfg.Preload == nil {
 		return
@@ -67,6 +71,8 @@ func New(name string, sources ...string) (*Stream, error) {
 	streams[name] = stream
 	streamsMu.Unlock()
 
+	notifyChange()
+
 	return stream, nil
 }
 
@@ -81,6 +87,7 @@ func Patch(name string, source string) (*Stream, error) {
 			if streams[name] != stream {
 				// link (alias) streams[name] to streams[rtspName]
 				streams[name] = stream
+				notifyChange()
 			}
 			return stream, nil
 		}
@@ -90,6 +97,7 @@ func Patch(name string, source string) (*Stream, error) {
 		if name != source {
 			// link (alias) streams[name] to streams[source]
 			streams[name] = stream
+			notifyChange()
 		}
 		return stream, nil
 	}
@@ -106,12 +114,14 @@ func Patch(name string, source string) (*Stream, error) {
 	// check an existing stream with this name
 	if stream, ok := streams[name]; ok {
 		stream.SetSource(source)
+		notifyChange()
 		return stream, nil
 	}
 
 	// create new stream with this name
 	stream := NewStream(source)
 	streams[name] = stream
+	notifyChange()
 	return stream, nil
 }
 
@@ -153,6 +163,7 @@ func Delete(name string) {
 	streamsMu.Lock()
 	defer streamsMu.Unlock()
 	delete(streams, name)
+	notifyChange()
 }
 
 func GetAllNames() []string {

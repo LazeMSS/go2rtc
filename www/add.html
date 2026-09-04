@@ -3,567 +3,870 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>add - go2rtc</title>
-    <style>
-        main > button {
-            background-color: #444;
-            color: white;
-            cursor: pointer;
-            padding: 14px;
-            width: 100%;
-            border: none;
-            text-align: left;
-            font-size: 16px;
-            font-weight: bold;
-        }
-
-        main > div {
-            display: none;
-            gap: 10px;
-        }
-    </style>
+    <title>Add Stream - go2rtc</title>
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<script src="main.js"></script>
+<script src="js/main.js"></script>
 
-<script>
-    function drawTable(table, data) {
-        const cols = ['id', 'name', 'info', 'url', 'location'];
-        const th = (row) => cols.reduce((html, k) => k in row ? `${html}<th>${k}</th>` : html, '<tr>') + '</tr>';
-        const td = (row) => cols.reduce((html, k) => k in row ? `${html}<td style="word-break: break-word; white-space: normal;">${row[k]}</td>` : html, '<tr>') + '</tr>';
-
-        const thead = th(data.sources[0]);
-        const tbody = data.sources.reduce((html, source) => `${html}${td(source)}`, '');
-
-        table.innerHTML = `<thead>${thead}</thead><tbody>${tbody}</tbody>`;
-    }
-
-    async function getSources(tableID, url) {
-        const table = document.getElementById(tableID);
-        table.innerText = 'loading...';
-
-        const r = typeof url === 'string' ? await fetch(url, {cache: 'no-cache'}) : url;
-        if (!r.ok) {
-            table.innerText = await r.text();
-            return;
-        }
-
-        drawTable(table, await r.json());
-    }
-</script>
-
-<main>
-    <button id="stream">Temporary stream</button>
-    <div>
-        <form id="stream-form">
-            <input type="text" name="name" placeholder="name">
-            <input type="text" name="src" placeholder="url" required size="30">
-            <button type="submit">add</button>
-        </form>
-    </div>
-    <script>
-        document.getElementById('stream').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-        });
-
-        document.getElementById('stream-form').addEventListener('submit', async ev => {
-            ev.preventDefault();
-
-            const url = new URL('api/streams', location.href);
-            url.searchParams.set('name', ev.target.elements['name'].value);
-            url.searchParams.set('src', ev.target.elements['src'].value);
-
-            const r = await fetch(url, {method: 'PUT'});
-            alert(r.ok ? 'OK' : 'ERROR: ' + await r.text());
-        });
-    </script>
-
-
-    <button id="alsa">ALSA (Linux audio)</button>
-    <div>
-        <table id="alsa-table"></table>
-    </div>
-    <script>
-        document.getElementById('alsa').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-            await getSources('alsa-table', 'api/alsa');
-        });
-    </script>
-
-
-    <button id="homekit">Apple HomeKit</button>
-    <div>
-        <form id="homekit-pair">
-            <input type="text" name="id" placeholder="stream id" required>
-            <input type="text" name="src" placeholder="src" required size="30">
-            <input type="text" name="pin" placeholder="pin" required size="10">
-            <button type="submit">pair</button>
-        </form>
-        <form id="homekit-unpair">
-            <input type="text" name="id" placeholder="stream id" required>
-            <button type="submit">unpair</button>
-        </form>
-        <table id="homekit-table"></table>
-    </div>
-    <script>
-        async function reloadHomeKit() {
-            await getSources('homekit-table', 'api/discovery/homekit');
-
-            const rows = document.querySelectorAll('#homekit-table tr');
-            rows.forEach((row, i) => {
-                let commands = '';
-                if (row.children[2].innerText.indexOf('status=1') > 0) {
-                    commands += '<a href="#">pair</a>';
-                } else if (i > 0 && row.children[3].innerText) {
-                    commands += '<a href="#">unpair</a>';
-                }
-                row.innerHTML += i > 0 ? `<td>${commands}</td>` : '<th>commands</th>';
-            });
-        }
-
-        document.getElementById('homekit').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-            await reloadHomeKit();
-        });
-
-        document.getElementById('homekit-table').addEventListener('click', ev => {
-            if (ev.target.innerText === 'pair') {
-                const form = document.querySelector('#homekit-pair');
-                const row = ev.target.closest('tr');
-                form.children[0].value = row.children[0].innerText;
-                form.children[1].value = row.children[2].innerText;
-            } else if (ev.target.innerText === 'unpair') {
-                const form = document.querySelector('#homekit-unpair');
-                const row = ev.target.closest('tr');
-                form.children[0].value = row.children[3].innerText;
-            }
-        });
-
-        document.getElementById('homekit-pair').addEventListener('submit', async ev => {
-            ev.preventDefault();
-
-            const params = new URLSearchParams(new FormData(ev.target));
-            const r = await fetch('api/homekit', {method: 'POST', body: params});
-            alert(r.ok ? 'OK' : 'ERROR: ' + await r.text());
-
-            await reloadHomeKit();
-        });
-
-        document.getElementById('homekit-unpair').addEventListener('submit', async ev => {
-            ev.preventDefault();
-
-            const params = new URLSearchParams(new FormData(ev.target));
-            const r = await fetch('api/homekit?' + params.toString(), {method: 'DELETE'});
-            alert(r.ok ? 'OK' : 'ERROR: ' + await r.text());
-
-            await reloadHomeKit();
-        });
-    </script>
-
-
-    <button id="dvrip">DVRIP</button>
-    <div>
-        <table id="dvrip-table"></table>
-    </div>
-    <script>
-        document.getElementById('dvrip').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-            await getSources('dvrip-table', 'api/dvrip');
-        });
-    </script>
-
-
-    <button id="devices">FFmpeg Devices (USB)</button>
-    <div>
-        <table id="devices-table"></table>
-    </div>
-    <script>
-        document.getElementById('devices').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-            await getSources('devices-table', 'api/ffmpeg/devices');
-        });
-    </script>
-
-
-    <button id="hardware">FFmpeg Hardware</button>
-    <div>
-        <table id="hardware-table"></table>
-    </div>
-    <script>
-        document.getElementById('hardware').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-            await getSources('hardware-table', 'api/ffmpeg/hardware');
-        });
-    </script>
-
-
-    <button id="nest">Google Nest</button>
-    <div>
-        <form id="nest-form">
-            <input type="text" name="client_id" placeholder="client_id" required>
-            <input type="text" name="client_secret" placeholder="client_secret" required>
-            <input type="text" name="refresh_token" placeholder="refresh_token" required>
-            <input type="text" name="project_id" placeholder="project_id" required>
-            <button type="submit">login</button>
-        </form>
-        <table id="nest-table"></table>
-    </div>
-    <script>
-        document.getElementById('nest').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-        });
-
-        document.getElementById('nest-form').addEventListener('submit', async ev => {
-            ev.preventDefault();
-
-            const query = new URLSearchParams(new FormData(ev.target));
-            const url = new URL('api/nest?' + query.toString(), location.href);
-
-            const r = await fetch(url, {cache: 'no-cache'});
-            await getSources('nest-table', r);
-        });
-    </script>
-
-    <button id="gopro">GoPro</button>
-    <div>
-        <table id="gopro-table"></table>
-    </div>
-    <script>
-        document.getElementById('gopro').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-            await getSources('gopro-table', 'api/gopro');
-        });
-    </script>
-
-
-    <button id="hass">Home Assistant</button>
-    <div>
-        <table id="hass-table"></table>
-    </div>
-    <script>
-        document.getElementById('hass').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-            await getSources('hass-table', 'api/hass');
-        });
-    </script>
-
-
-    <button id="onvif">ONVIF</button>
-    <div>
-        <form id="onvif-form">
-            <input type="text" name="src" placeholder="onvif://user:pass@192.168.1.123:80" required size="30">
-            <button type="submit">test</button>
-        </form>
-        <table id="onvif-table"></table>
-    </div>
-    <script>
-        document.getElementById('onvif').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-            await getSources('onvif-table', 'api/onvif');
-        });
-
-        document.getElementById('onvif-form').addEventListener('submit', async ev => {
-            ev.preventDefault();
-
-            const url = new URL('api/onvif', location.href);
-            url.searchParams.set('src', ev.target.elements['src'].value);
-
-            await getSources('onvif-table', url.toString());
-        });
-    </script>
-
-
-    <button id="ring">Ring</button>
-    <div>
-        <form id="ring-credentials-form">
-            <input type="email" name="email" placeholder="email" required>
-            <input type="password" name="password" placeholder="password" required>
-            <div id="tfa-field" style="display: none">
-                <input type="text" name="code" placeholder="2FA code">
-                <div id="tfa-prompt"></div>
+<main class="modern-main">
+    <!-- Wizard Stepper Indicator -->
+    <div class="wizard-stepper">
+        <div class="wizard-step active clickable" id="step-nav-1">
+            <div class="step-number">1</div>
+            <div class="step-info">
+                <div class="step-title">Choose Integration</div>
+                <div class="step-subtitle">Pick stream source or hardware</div>
             </div>
-            <button type="submit">login</button>
-        </form>
-        <form id="ring-token-form">
-            <input type="text" name="refresh_token" placeholder="refresh_token" required>
-            <button type="submit">login</button>
-        </form>
-        <table id="ring-table"></table>
+        </div>
+        <div class="wizard-step-divider">
+            <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+        </div>
+        <div class="wizard-step" id="step-nav-2">
+            <div class="step-number">2</div>
+            <div class="step-info">
+                <div class="step-title">Configure & Discover</div>
+                <div class="step-subtitle" id="step-nav-2-subtitle">Parameters & detected devices</div>
+            </div>
+        </div>
     </div>
-    <script>
-        document.getElementById('ring').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-        });
 
-        async function handleRingAuth(ev) {
-            ev.preventDefault();
+    <!-- STEP 1: Integration Selection View -->
+    <div id="step-1-view">
+        <div class="toolbar-card wizard-toolbar">
+            <div class="status-filters" id="category-filters">
+                <button type="button" class="filter-btn active" data-cat="all">All Sources</button>
+                <button type="button" class="filter-btn" data-cat="camera">Cameras & Streams</button>
+                <button type="button" class="filter-btn" data-cat="cloud">Smart Home & Cloud</button>
+                <button type="button" class="filter-btn" data-cat="hardware">Hardware & System</button>
+            </div>
 
-            const table = document.getElementById('ring-table');
-            table.innerText = 'loading...';
+            <div class="search-wrapper wizard-search-wrap">
+                <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                <input type="search" id="integration-search" class="search-input" placeholder="Search integrations (RTSP, ONVIF, Ring, USB, Nest, HomeKit...)...">
+            </div>
+        </div>
 
-            const query = new URLSearchParams(new FormData(ev.target));
-            const url = new URL('api/ring?' + query.toString(), location.href);
+        <div class="wizard-grid" id="integration-grid">
+            <!-- Custom Stream -->
+            <div class="wizard-card" data-id="stream" data-cat="camera" data-keywords="custom rtsp rtmp webrtc http hls url temporary mjpeg mp4 stream manual">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge badge-blue">Quick Add</span>
+                </div>
+                <div class="wizard-card-title">Custom Stream</div>
+                <div class="wizard-card-desc">Add any RTSP, RTMP, HTTP, WebRTC, or file URL directly as a live stream.</div>
+                <div class="wizard-card-footer">
+                    <span>Configure stream</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
 
-            const r = await fetch(url, {cache: 'no-cache'});
+            <!-- ONVIF -->
+            <div class="wizard-card" data-id="onvif" data-cat="camera" data-keywords="onvif ip camera security cctv discover profile test rtsp">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge badge-green">Auto-Discover</span>
+                </div>
+                <div class="wizard-card-title">ONVIF Cameras</div>
+                <div class="wizard-card-desc">Automatically discover ONVIF IP cameras on the local network and test stream URLs.</div>
+                <div class="wizard-card-footer">
+                    <span>Discover & test</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
 
-            if (!r.ok) {
-                table.innerText = (await r.text()) || 'Unknown error';
-                return;
-            }
+            <!-- Apple HomeKit -->
+            <div class="wizard-card" data-id="homekit" data-cat="camera" data-keywords="apple homekit home secure video pair pin camera hksv">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge badge-purple">Pairing</span>
+                </div>
+                <div class="wizard-card-title">Apple HomeKit</div>
+                <div class="wizard-card-desc">Discover, pair with setup PIN, and manage HomeKit camera accessories.</div>
+                <div class="wizard-card-footer">
+                    <span>Pair accessories</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
 
-            const data = await r.json();
+            <!-- Home Assistant -->
+            <div class="wizard-card" data-id="hass" data-cat="cloud" data-keywords="home assistant hass hassio iot smart home camera">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge badge-blue">Integration</span>
+                </div>
+                <div class="wizard-card-title">Home Assistant</div>
+                <div class="wizard-card-desc">Import and stream cameras configured in your Home Assistant instance.</div>
+                <div class="wizard-card-footer">
+                    <span>View entities</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
 
-            table.innerText = '';
+            <!-- Ring -->
+            <div class="wizard-card" data-id="ring" data-cat="cloud" data-keywords="ring doorbell camera floodlight amazon security 2fa">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">Cloud</span>
+                </div>
+                <div class="wizard-card-title">Ring</div>
+                <div class="wizard-card-desc">Connect Ring Video Doorbells, Stick Up Cams, and Floodlights via credentials or token.</div>
+                <div class="wizard-card-footer">
+                    <span>Authenticate</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
 
-            if (data.needs_2fa) {
-                document.getElementById('tfa-field').style.display = 'block';
-                document.getElementById('tfa-prompt').textContent = data.prompt || 'Enter 2FA code';
-                return;
-            }
+            <!-- Google Nest -->
+            <div class="wizard-card" data-id="nest" data-cat="cloud" data-keywords="google nest camera hub doorbell sdm oauth smart device">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">Cloud</span>
+                </div>
+                <div class="wizard-card-title">Google Nest</div>
+                <div class="wizard-card-desc">Connect Nest Cams and Google Doorbell streams using OAuth and Google SDM API.</div>
+                <div class="wizard-card-footer">
+                    <span>Configure OAuth</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
 
-            drawTable(table, data);
-        }
+            <!-- Wyze -->
+            <div class="wizard-card" data-id="wyze" data-cat="cloud" data-keywords="wyze cam v2 v3 pan outdoor api key smart camera">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">Cloud</span>
+                </div>
+                <div class="wizard-card-title">Wyze</div>
+                <div class="wizard-card-desc">Access Wyze Cam v2, v3, Pan, and battery cameras with official Wyze API keys.</div>
+                <div class="wizard-card-footer">
+                    <span>Login & discover</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
 
-        document.getElementById('ring-credentials-form').addEventListener('submit', handleRingAuth);
-        document.getElementById('ring-token-form').addEventListener('submit', handleRingAuth);
-    </script>
+            <!-- Tuya / Smart Life -->
+            <div class="wizard-card" data-id="tuya" data-cat="cloud" data-keywords="tuya smart life nedis iot cloud smart camera">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">Cloud</span>
+                </div>
+                <div class="wizard-card-title">Tuya / Smart Life</div>
+                <div class="wizard-card-desc">Import and stream smart cameras from Tuya, Smart Life, and Nedis ecosystems.</div>
+                <div class="wizard-card-footer">
+                    <span>Select region</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
 
+            <!-- Xiaomi Mi Home -->
+            <div class="wizard-card" data-id="xiaomi" data-cat="cloud" data-keywords="xiaomi mi home mijia imilab camera captcha 2fa">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14h-2v-6h2v6zm0-8h-2V6h2v2zm4 8h-2v-4h2v4zm0-6h-2V6h2v2z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">Cloud</span>
+                </div>
+                <div class="wizard-card-title">Xiaomi Mi Home</div>
+                <div class="wizard-card-desc">Connect Mi Home cameras with multi-region support and captcha authentication.</div>
+                <div class="wizard-card-footer">
+                    <span>Authenticate</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
 
-    <button id="tuya">Tuya</button>
-    <div>
-        <form id="tuya-credentials-form">
-            <select name="region" required>
-                <option value="protect-eu.ismartlife.me">EU Central</option>
-                <option value="protect-we.ismartlife.me">EU East</option>
-                <option value="protect-us.ismartlife.me">US West</option>
-                <option value="protect-ue.ismartlife.me">US East</option>
-                <option value="protect.ismartlife.me">China</option>
-                <option value="protect-in.ismartlife.me">India</option>
-            </select>
-            <input type="email" name="email" placeholder="email" required>
-            <input type="password" name="password" placeholder="password" required>
-            <button type="submit">login</button>
-        </form>
-        <table id="tuya-table"></table>
+            <!-- Roborock -->
+            <div class="wizard-card" data-id="roborock" data-cat="cloud" data-keywords="roborock robot vacuum cleaner s6 s7 camera stream">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.93V15a1 1 0 0 0-2 0v1.93A8 8 0 0 1 4.07 11H6a1 1 0 0 0 0-2H4.07A8 8 0 0 1 11 4.07V6a1 1 0 0 0 2 0V4.07A8 8 0 0 1 19.93 11H18a1 1 0 0 0 0 2h1.93A8 8 0 0 1 13 16.93z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">Cloud</span>
+                </div>
+                <div class="wizard-card-title">Roborock</div>
+                <div class="wizard-card-desc">Stream live video feeds from onboard cameras on Roborock robotic vacuums.</div>
+                <div class="wizard-card-footer">
+                    <span>Connect account</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+
+            <!-- FFmpeg USB Devices -->
+            <div class="wizard-card" data-id="devices" data-cat="hardware" data-keywords="usb webcam capture card hdmi directshow dshow vfw hardware local">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M15 7v4h1v2h-3V5h2l-3-4-3 4h2v8H8v-2.07c.7-.37 1.2-1.08 1.2-1.93 0-1.21-.99-2.2-2.2-2.2-1.21 0-2.2.99-2.2 2.2 0 .85.5 1.56 1.2 1.93V13c0 1.11.89 2 2 2h3v3.05c-.71.37-1.2 1.1-1.2 1.95a2.2 2.2 0 0 0 4.4 0c0-.85-.49-1.58-1.2-1.95V15h3c1.11 0 2-.89 2-2v-2h1V7h-4z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge badge-green">Local USB</span>
+                </div>
+                <div class="wizard-card-title">USB Webcams & Capture</div>
+                <div class="wizard-card-desc">Enumerate local USB webcams, DirectShow devices, and HDMI capture cards.</div>
+                <div class="wizard-card-footer">
+                    <span>Scan devices</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+
+            <!-- FFmpeg Hardware Acceleration -->
+            <div class="wizard-card" data-id="hardware" data-cat="hardware" data-keywords="hardware acceleration gpu nvenc vaapi qsv videotoolbox codecs cuda">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M6 2v4H2v2h4v4H2v2h4v4H2v2h4v4h2v-4h4v4h2v-4h4v4h2v-4h4v-2h-4v-4h4v-2h-4V8h4V6h-4V2h-2v4h-4V2h-2v4H8V2H6zm2 6h8v8H8V8z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge badge-purple">GPU</span>
+                </div>
+                <div class="wizard-card-title">Hardware Acceleration</div>
+                <div class="wizard-card-desc">Check GPU hardware encoders/decoders (Nvidia NVENC, Intel QSV, VAAPI).</div>
+                <div class="wizard-card-footer">
+                    <span>Inspect GPU</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+
+            <!-- DVRIP (Xiongmai) -->
+            <div class="wizard-card" data-id="dvrip" data-cat="camera" data-keywords="dvrip xiongmai xm dvr nvr ip camera lan discovery">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M2 4v16h20V4H2zm4 4h4v4H6V8zm0 6h4v2H6v-2zm6-6h6v2h-6V8zm0 4h6v2h-6v-2zm0 4h6v2h-6v-2z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">Auto-Discover</span>
+                </div>
+                <div class="wizard-card-title">DVRIP (Xiongmai)</div>
+                <div class="wizard-card-desc">Discover Xiongmai/XM-based cameras and DVRs on your local network.</div>
+                <div class="wizard-card-footer">
+                    <span>Discover DVRIP</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+
+            <!-- GoPro -->
+            <div class="wizard-card" data-id="gopro" data-cat="camera" data-keywords="gopro action cam hero camera wifi stream">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M4 4h10v16H4V4zm12 4h4v8h-4V8z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">Action Cam</span>
+                </div>
+                <div class="wizard-card-title">GoPro Camera</div>
+                <div class="wizard-card-desc">Discover connected GoPro Hero action cameras and stream live video feeds.</div>
+                <div class="wizard-card-footer">
+                    <span>Detect GoPro</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+
+            <!-- V4L2 (Linux video) -->
+            <div class="wizard-card" data-id="v4l2" data-cat="hardware" data-keywords="v4l2 video4linux linux capture device /dev/video camera">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M21 3H3c-1.11 0-2 .89-2 2v12a2 2 0 0 0 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5a2 2 0 0 0-2-2zm0 14H3V5h18v12z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">Linux</span>
+                </div>
+                <div class="wizard-card-title">V4L2 (Linux Video)</div>
+                <div class="wizard-card-desc">Enumerate Linux Video4Linux video capture devices and CSI camera modules.</div>
+                <div class="wizard-card-footer">
+                    <span>View devices</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+
+            <!-- ALSA (Linux audio) -->
+            <div class="wizard-card" data-id="alsa" data-cat="hardware" data-keywords="alsa linux audio soundcard microphone capture sound input">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">Linux</span>
+                </div>
+                <div class="wizard-card-title">ALSA Audio</div>
+                <div class="wizard-card-desc">Detect Linux Advanced Linux Sound Architecture soundcards and microphone inputs.</div>
+                <div class="wizard-card-footer">
+                    <span>View audio</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+
+            <!-- WebTorrent -->
+            <div class="wizard-card" data-id="webtorrent" data-cat="hardware" data-keywords="webtorrent p2p torrent stream peer sharing network">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">P2P</span>
+                </div>
+                <div class="wizard-card-title">WebTorrent Shares</div>
+                <div class="wizard-card-desc">Inspect active WebTorrent peer-to-peer live stream shares and seeds.</div>
+                <div class="wizard-card-footer">
+                    <span>View shares</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+        </div>
     </div>
-    <script>
-        document.getElementById('tuya').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-        });
 
-        document.getElementById('tuya-credentials-form').addEventListener('submit', async ev => {
-            ev.preventDefault();
+    <!-- STEP 2: Configuration View -->
+    <div id="step-2-view" class="hidden">
+        <div class="wizard-config-container">
+            <div class="wizard-config-top">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-wizard-back">
+                    <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                    <span>Back to Integrations</span>
+                </button>
+                <div class="wizard-selected-header">
+                    <div class="wizard-selected-icon" id="selected-icon"></div>
+                    <div>
+                        <h2 class="wizard-selected-title" id="selected-title">Custom Stream</h2>
+                        <p class="wizard-selected-desc" id="selected-desc">Configure stream parameters</p>
+                    </div>
+                </div>
+            </div>
 
-            const table = document.getElementById('tuya-table');
-            table.innerText = 'loading...';
+            <!-- Panel 1: Custom Stream -->
+            <div class="wizard-panel" data-panel="stream">
+                <div class="info-banner">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                    <div>
+                        <strong>Supported URL formats:</strong> RTSP (<code>rtsp://user:pass@192.168.1.10:554/live</code>), RTMP, HTTP/HLS, WebRTC (<code>webrtc://...</code>), MP4/MJPEG, or FFmpeg commands.
+                    </div>
+                </div>
 
-            const query = new URLSearchParams(new FormData(ev.target));
-            const url = new URL('api/tuya?' + query.toString(), location.href);
+                <div class="form-card">
+                    <div class="form-card-title">Stream Configuration</div>
+                    <form id="stream-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Stream Name (ID)</label>
+                                <input type="text" name="name" class="form-input" placeholder="e.g. driveway_camera, living_room" required>
+                                <span class="form-help">Unique identifier used in URLs and WebRTC links.</span>
+                            </div>
+                            <div class="form-group col-span-2">
+                                <label class="form-label">Stream Source URL</label>
+                                <input type="text" name="src" class="form-input" placeholder="rtsp://admin:password@192.168.1.100:554/stream1" required>
+                                <span class="form-help">Live feed URL or ffmpeg pipe command.</span>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                                <span>Add Stream</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
 
-            const r = await fetch(url, {cache: 'no-cache'});
+            <!-- Panel 2: ONVIF -->
+            <div class="wizard-panel" data-panel="onvif">
+                <div class="form-card">
+                    <div class="form-card-title">Test ONVIF Device</div>
+                    <form id="onvif-form">
+                        <div class="form-grid">
+                            <div class="form-group col-span-2">
+                                <label class="form-label">ONVIF URL</label>
+                                <input type="text" name="src" class="form-input" placeholder="onvif://admin:password@192.168.1.123:80" required>
+                                <span class="form-help">Format: <code>onvif://username:password@IP_ADDRESS:PORT</code></span>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+                                <span>Query & Test Device</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
 
-            if (!r.ok) {
-                table.innerText = (await r.text()) || 'Unknown error';
-                return;
-            }
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Discovered ONVIF Devices</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-rescan-onvif">Rescan Network</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="onvif-table"></table>
+                    </div>
+                </div>
+            </div>
 
-            const data = await r.json();
+            <!-- Panel 3: Apple HomeKit -->
+            <div class="wizard-panel" data-panel="homekit">
+                <div class="form-card">
+                    <div class="form-card-title">Pair New HomeKit Accessory</div>
+                    <form id="homekit-pair">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Stream ID</label>
+                                <input type="text" name="id" class="form-input" placeholder="e.g. front_door" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Device Source Address</label>
+                                <input type="text" name="src" class="form-input" placeholder="homekit://192.168.1.150:51827" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Setup PIN Code</label>
+                                <input type="text" name="pin" class="form-input" placeholder="123-45-678" required>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                                <span>Pair Accessory</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
 
-            table.innerText = '';
+                <div class="form-card">
+                    <div class="form-card-title">Unpair HomeKit Accessory</div>
+                    <form id="homekit-unpair">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Paired Stream ID</label>
+                                <input type="text" name="id" class="form-input" placeholder="Stream ID to unpair" required>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-danger">Unpair Device</button>
+                        </div>
+                    </form>
+                </div>
 
-            drawTable(table, data);
-        });
-    </script>
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Discovered HomeKit Accessories</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-rescan-homekit">Rescan</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="homekit-table"></table>
+                    </div>
+                </div>
+            </div>
 
+            <!-- Panel 4: FFmpeg USB Devices -->
+            <div class="wizard-panel" data-panel="devices">
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Connected USB Webcams & Capture Cards</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-rescan-devices">Rescan USB</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="devices-table"></table>
+                    </div>
+                </div>
+            </div>
 
-    <button id="roborock">Roborock</button>
-    <div>
-        <form id="roborock-form">
-            <input type="text" name="username" placeholder="username" required>
-            <input type="password" name="password" placeholder="password" required>
-            <button type="submit">login</button>
-        </form>
-        <table id="roborock-table">
-        </table>
+            <!-- Panel 5: Hardware Acceleration -->
+            <div class="wizard-panel" data-panel="hardware">
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Available Hardware Encoders & Decoders</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-rescan-hardware">Refresh GPU</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="hardware-table"></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 6: Home Assistant -->
+            <div class="wizard-panel" data-panel="hass">
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Home Assistant Cameras</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-rescan-hass">Reload Hass</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="hass-table"></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 7: Ring -->
+            <div class="wizard-panel" data-panel="ring">
+                <div class="form-card">
+                    <div class="form-card-title">Ring Account Login</div>
+                    <form id="ring-credentials-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Ring Account Email</label>
+                                <input type="email" name="email" class="form-input" placeholder="user@example.com" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Password</label>
+                                <input type="password" name="password" class="form-input" placeholder="••••••••" required>
+                            </div>
+                            <div class="form-group col-span-2 hidden" id="tfa-field">
+                                <label class="form-label">Two-Factor Authentication (2FA)</label>
+                                <input type="text" name="code" class="form-input" placeholder="Enter 6-digit SMS / App code">
+                                <span class="form-help" id="tfa-prompt">Enter the verification code sent to your phone.</span>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Login to Ring</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="form-card">
+                    <div class="form-card-title">Or Connect via Refresh Token</div>
+                    <form id="ring-token-form">
+                        <div class="form-grid">
+                            <div class="form-group col-span-2">
+                                <label class="form-label">Ring Refresh Token</label>
+                                <input type="text" name="refresh_token" class="form-input" placeholder="Ring 2.0 refresh token" required>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary">Authenticate with Token</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Ring Cameras</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="ring-table"></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 8: Google Nest -->
+            <div class="wizard-panel" data-panel="nest">
+                <div class="form-card">
+                    <div class="form-card-title">Google Nest SDM Credentials</div>
+                    <form id="nest-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Client ID</label>
+                                <input type="text" name="client_id" class="form-input" placeholder="OAuth Client ID" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Client Secret</label>
+                                <input type="text" name="client_secret" class="form-input" placeholder="OAuth Client Secret" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Refresh Token</label>
+                                <input type="text" name="refresh_token" class="form-input" placeholder="OAuth Refresh Token" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Project ID</label>
+                                <input type="text" name="project_id" class="form-input" placeholder="SDM Project ID" required>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Connect Nest Account</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Nest Devices</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="nest-table"></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 9: Tuya -->
+            <div class="wizard-panel" data-panel="tuya">
+                <div class="form-card">
+                    <div class="form-card-title">Tuya / Smart Life Credentials</div>
+                    <form id="tuya-credentials-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Region Endpoint</label>
+                                <select name="region" class="form-select" required>
+                                    <option value="protect-eu.ismartlife.me">EU Central</option>
+                                    <option value="protect-we.ismartlife.me">EU East</option>
+                                    <option value="protect-us.ismartlife.me">US West</option>
+                                    <option value="protect-ue.ismartlife.me">US East</option>
+                                    <option value="protect.ismartlife.me">China</option>
+                                    <option value="protect-in.ismartlife.me">India</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email Address</label>
+                                <input type="email" name="email" class="form-input" placeholder="user@example.com" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Password</label>
+                                <input type="password" name="password" class="form-input" placeholder="••••••••" required>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Login & Discover Cameras</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Tuya Devices</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="tuya-table"></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 10: Wyze -->
+            <div class="wizard-panel" data-panel="wyze">
+                <div class="info-banner">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                    <div>
+                        Official API Key required: <a href="https://support.wyze.com/hc/en-us/articles/16129834216731" target="_blank">Get your Wyze API Key here</a>.
+                    </div>
+                </div>
+
+                <div class="form-card">
+                    <div class="form-card-title">Wyze Account Login</div>
+                    <form id="wyze-login-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Wyze API ID</label>
+                                <input type="text" name="api_id" class="form-input" placeholder="API ID" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Wyze API Key</label>
+                                <input type="text" name="api_key" class="form-input" placeholder="API Key" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email</label>
+                                <input type="email" name="email" class="form-input" placeholder="user@example.com" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Password</label>
+                                <input type="password" name="password" class="form-input" placeholder="••••••••" required>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Login & Register User</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="form-card">
+                    <div class="form-card-title">Load Devices for Account</div>
+                    <form id="wyze-devices-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Select Account</label>
+                                <select id="wyze-id" name="id" class="form-select" required></select>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary">Load Devices</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Wyze Cameras</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="wyze-table"></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 11: Xiaomi -->
+            <div class="wizard-panel" data-panel="xiaomi">
+                <div class="form-card">
+                    <div class="form-card-title">Xiaomi Mi Home Authentication</div>
+                    <form id="xiaomi-login-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Username / Account ID</label>
+                                <input type="text" name="username" class="form-input" placeholder="Username or phone" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Password</label>
+                                <input type="password" name="password" class="form-input" placeholder="••••••••" required>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Login to Xiaomi</button>
+                        </div>
+                    </form>
+
+                    <form id="xiaomi-captcha-form" class="form-col-wrap hidden">
+                        <div class="form-inline-row">
+                            <img id="xiaomi-captcha" class="captcha-preview">
+                            <input type="text" name="captcha" class="form-input input-compact" placeholder="Enter captcha characters" required>
+                            <button type="submit" class="btn btn-primary">Submit Captcha</button>
+                        </div>
+                    </form>
+
+                    <form id="xiaomi-verify-form" class="form-col-wrap hidden">
+                        <div class="form-group">
+                            <label class="form-label">Verification Code Sent To: <span id="xiaomi-verify" class="font-bold"></span></label>
+                            <div class="form-inline-row">
+                                <input type="text" name="verify" class="form-input input-compact" placeholder="Verification Code" required>
+                                <button type="submit" class="btn btn-primary">Verify</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="form-card">
+                    <div class="form-card-title">Load Xiaomi Devices</div>
+                    <form id="xiaomi-devices-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Registered Account</label>
+                                <select id="xiaomi-id" name="id" class="form-select" required></select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Server Region</label>
+                                <select name="region" class="form-select" required>
+                                    <option value="cn">China (cn)</option>
+                                    <option value="de">Europe (de)</option>
+                                    <option value="i2">India (i2)</option>
+                                    <option value="ru">Russia (ru)</option>
+                                    <option value="sg">Singapore (sg)</option>
+                                    <option value="us">United States (us)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary">Load Mi Home Devices</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Xiaomi Cameras</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="xiaomi-table"></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 12: Roborock -->
+            <div class="wizard-panel" data-panel="roborock">
+                <div class="form-card">
+                    <div class="form-card-title">Roborock Account Login</div>
+                    <form id="roborock-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Roborock Account</label>
+                                <input type="text" name="username" class="form-input" placeholder="Email / Username" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Password</label>
+                                <input type="password" name="password" class="form-input" placeholder="••••••••" required>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Connect Roborock</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Roborock Devices</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="roborock-table"></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 13: DVRIP -->
+            <div class="wizard-panel" data-panel="dvrip">
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Discovered DVRIP / Xiongmai Cameras</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-rescan-dvrip">Rescan</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="dvrip-table"></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 14: GoPro -->
+            <div class="wizard-panel" data-panel="gopro">
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Connected GoPro Cameras</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-rescan-gopro">Rescan</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="gopro-table"></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 15: V4L2 -->
+            <div class="wizard-panel" data-panel="v4l2">
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>V4L2 Video Devices</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-rescan-v4l2">Rescan</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="v4l2-table"></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 16: ALSA -->
+            <div class="wizard-panel" data-panel="alsa">
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>ALSA Audio Devices</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-rescan-alsa">Rescan</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="alsa-table"></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 17: WebTorrent -->
+            <div class="wizard-panel" data-panel="webtorrent">
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Active WebTorrent Streams</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-rescan-webtorrent">Refresh</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="webtorrent-table"></table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    <script>
-        document.getElementById('roborock').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-            await getSources('roborock-table', 'api/roborock');
-        });
-
-        document.getElementById('roborock-form').addEventListener('submit', async ev => {
-            ev.preventDefault();
-            const r = await fetch('api/roborock', {method: 'POST', body: new FormData(ev.target)});
-            await getSources('roborock-table', r);
-        });
-    </script>
-
-
-    <button id="v4l2">V4L2 (Linux video)</button>
-    <div>
-        <table id="v4l2-table"></table>
-    </div>
-    <script>
-        document.getElementById('v4l2').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-            await getSources('v4l2-table', 'api/v4l2');
-        });
-    </script>
-
-
-    <button id="wyze">Wyze</button>
-    <div>
-        <p style="margin: 5px 0; font-size: 12px; color: #888;">
-            API Key required: <a href="https://support.wyze.com/hc/en-us/articles/16129834216731" target="_blank">Get your API Key</a>
-        </p>
-        <form id="wyze-login-form">
-            <input type="text" name="api_id" placeholder="API ID" required size="20">
-            <input type="text" name="api_key" placeholder="API Key" required size="36">
-            <input type="email" name="email" placeholder="email" required>
-            <input type="password" name="password" placeholder="password" required>
-            <button type="submit">login</button>
-        </form>
-        <form id="wyze-devices-form">
-            <select id="wyze-id" name="id" required></select>
-            <button type="submit">load devices</button>
-        </form>
-        <table id="wyze-table"></table>
-    </div>
-    <script>
-        async function wyzeReload(ev) {
-            if (ev) ev.target.nextElementSibling.style.display = 'grid';
-
-            const r = await fetch('api/wyze', {'cache': 'no-cache'});
-            const data = await r.json();
-            const users = document.getElementById('wyze-id');
-            users.innerHTML = data.map(item => `<option value="${item}">${item}</option>`).join('');
-        }
-
-        document.getElementById('wyze').addEventListener('click', wyzeReload);
-
-        document.getElementById('wyze-login-form').addEventListener('submit', async ev => {
-            ev.preventDefault();
-
-            const table = document.getElementById('wyze-table');
-            table.innerText = 'loading...';
-
-            const params = new URLSearchParams(new FormData(ev.target));
-            const r = await fetch('api/wyze', {method: 'POST', body: params});
-
-            if (!r.ok) {
-                table.innerText = (await r.text()) || 'Unknown error';
-                return;
-            }
-
-            const data = await r.json();
-            table.innerText = '';
-            drawTable(table, data);
-            wyzeReload();
-        });
-
-        document.getElementById('wyze-devices-form').addEventListener('submit', async ev => {
-            ev.preventDefault();
-            const params = new URLSearchParams(new FormData(ev.target));
-            await getSources('wyze-table', 'api/wyze?' + params.toString());
-        });
-    </script>
-
-
-    <button id="xiaomi">Xiaomi</button>
-    <div>
-        <form id="xiaomi-login-form">
-            <input type="text" name="username" placeholder="username" required>
-            <input type="password" name="password" placeholder="password" required>
-            <button type="submit">login</button>
-        </form>
-        <form id="xiaomi-captcha-form">
-            <img id="xiaomi-captcha">
-            <input type="text" name="captcha" placeholder="captcha" required size="10">
-            <button type="submit">send</button>
-        </form>
-        <form id="xiaomi-verify-form">
-            <label id="xiaomi-verify"></label>
-            <input type="text" name="verify" placeholder="verify" required size="10">
-            <button type="submit">send</button>
-        </form>
-        <form id="xiaomi-devices-form">
-            <select id="xiaomi-id" name="id" required></select>
-            <select name="region" required>
-                <option value="cn">China</option>
-                <option value="de">Europe</option>
-                <option value="i2">India</option>
-                <option value="ru">Russia</option>
-                <option value="sg">Singapore</option>
-                <option value="us">United States</option>
-            </select>
-            <button type="submit">load devices</button>
-        </form>
-        <table id="xiaomi-table"></table>
-    </div>
-    <script>
-        async function xiaomiReload(ev) {
-            if (ev) ev.target.nextElementSibling.style.display = 'grid';
-
-            document.getElementById('xiaomi-login-form').style.display = 'flex';
-            document.getElementById('xiaomi-captcha-form').style.display = 'none';
-            document.getElementById('xiaomi-verify-form').style.display = 'none';
-
-            const r = await fetch('api/xiaomi', {'cache': 'no-cache'});
-            const data = await r.json();
-            const users = document.getElementById('xiaomi-id');
-            users.innerHTML = data.map(item => `<option value="${item}">${item}</option>`).join('');
-        }
-
-        document.getElementById('xiaomi').addEventListener('click', xiaomiReload);
-
-        async function xiaomiLogin(ev) {
-            ev.preventDefault();
-            const params = new URLSearchParams(new FormData(ev.target));
-            const r = await fetch('api/xiaomi', {method: 'POST', body: params});
-            if (r.status === 401) {
-                /** @type {{captcha: string, verify_email: string, verify_phone: string}} */
-                const data = await r.json();
-                document.getElementById('xiaomi-login-form').style.display = 'none';
-                if (data.captcha) {
-                    document.getElementById('xiaomi-captcha-form').style.display = 'flex';
-                    document.getElementById('xiaomi-captcha').src = 'data:image/jpeg;base64,' + data.captcha;
-                } else {
-                    document.getElementById('xiaomi-verify-form').style.display = 'flex';
-                    document.getElementById('xiaomi-verify').innerText = data.verify_email || data.verify_phone;
-                }
-            } else if (r.ok) {
-                alert('OK');
-                xiaomiReload();
-            } else {
-                alert('ERROR: ' + await r.text());
-            }
-        }
-
-        document.getElementById('xiaomi-login-form').addEventListener('submit', xiaomiLogin);
-        document.getElementById('xiaomi-captcha-form').addEventListener('submit', xiaomiLogin);
-        document.getElementById('xiaomi-verify-form').addEventListener('submit', xiaomiLogin);
-
-        document.getElementById('xiaomi-devices-form').addEventListener('submit', async ev => {
-            ev.preventDefault();
-            const params = new URLSearchParams(new FormData(ev.target));
-            await getSources('xiaomi-table', 'api/xiaomi?' + params.toString());
-        });
-    </script>
-
-
-    <button id="webtorrent">WebTorrent Shares</button>
-    <div>
-        <table id="webtorrent-table"></table>
-    </div>
-    <script>
-        document.getElementById('webtorrent').addEventListener('click', async ev => {
-            ev.target.nextElementSibling.style.display = 'grid';
-            await getSources('webtorrent-table', 'api/webtorrent');
-        });
-    </script>
 </main>
 
+<script src="js/add.js"></script>
 </body>
 </html>

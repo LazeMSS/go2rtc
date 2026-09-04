@@ -1,7 +1,11 @@
 package main
 
 import (
+	"os"
+	osexec "os/exec"
+	"runtime"
 	"slices"
+	"time"
 
 	"github.com/AlexxIT/go2rtc/internal/alsa"
 	"github.com/AlexxIT/go2rtc/internal/api"
@@ -52,6 +56,44 @@ import (
 )
 
 func main() {
+	if runtime.GOOS == "windows" && os.Getenv("GO2RTC_SUPERVISOR") != "1" {
+		// Fast-path for cli flags that don't need a supervisor: -v, --version, -h, --help
+		for _, arg := range os.Args[1:] {
+			if arg == "-v" || arg == "-version" || arg == "--version" ||
+				arg == "-h" || arg == "-help" || arg == "--help" {
+				runServer()
+				return
+			}
+		}
+
+		for {
+			cmd := osexec.Command(os.Args[0], os.Args[1:]...)
+			cmd.Env = append(os.Environ(), "GO2RTC_SUPERVISOR=1")
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			err := cmd.Run()
+			if exitErr, ok := err.(*osexec.ExitError); ok && exitErr.ExitCode() == api.ExitCodeRestart {
+				// Server restart requested via Web UI: keep shell attached and respawn
+				time.Sleep(200 * time.Millisecond)
+				continue
+			}
+
+			if err != nil {
+				if exitErr, ok := err.(*osexec.ExitError); ok {
+					os.Exit(exitErr.ExitCode())
+				}
+				os.Exit(1)
+			}
+			os.Exit(0)
+		}
+	}
+
+	runServer()
+}
+
+func runServer() {
 	// version will be set later from -buildvcs info, this used only as fallback
 	app.Version = "1.9.14"
 

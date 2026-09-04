@@ -1,67 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="apple-touch-icon" href="https://go2rtc.org/icons/apple-touch-icon-180x180.png" sizes="180x180">
-    <link rel="icon" href="https://go2rtc.org/icons/favicon.ico">
-    <link rel="manifest" href="https://go2rtc.org/manifest.json">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" sizes="180x180">
+    <link rel="icon" href="favicon.ico">
     <title>stream - go2rtc</title>
-    <style>
-        body {
-            background: black;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            font-family: Arial, Helvetica, sans-serif;
-        }
-
-        html, body {
-            height: 100%;
-            width: 100%;
-        }
-
-        .flex {
-            flex-wrap: wrap;
-            align-content: flex-start;
-            align-items: flex-start;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
-<body>
-<script type="module" src="./video-stream.js"></script>
-<script type="module">
-    const params = new URLSearchParams(location.search);
+<body class="stream-body-page">
 
-    // support multiple streams and multiple modes
-    const streams = params.getAll('src');
-    const modes = params.getAll('mode');
-    if (modes.length === 0) modes.push('');
+<!-- Top Navigation Bar -->
+<header class="stream-nav-bar" id="stream-nav">
+    <div class="stream-nav-left">
+        <a href="index.html" id="btn-back" class="btn btn-secondary btn-sm" title="Back to Streams">
+            <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+            Back
+        </a>
+        <div class="stream-page-title">
+            <span class="status-dot"></span>
+            <span id="nav-title">Live Monitor</span>
+            <span class="badge badge-idle" id="nav-count">1 Stream</span>
+        </div>
+    </div>
 
-    while (modes.length > streams.length) {
-        streams.push(streams[0]);
-    }
-    while (streams.length > modes.length) {
-        modes.push(modes[0]);
-    }
+    <div class="stream-nav-right">
+        <button id="btn-shortcuts" class="btn btn-secondary btn-sm" title="Keyboard Shortcuts (?)">
+            <svg viewBox="0 0 24 24"><path d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/></svg>
+            <kbd class="shortcut-kbd">?</kbd>
+        </button>
+        <button id="btn-reconnect" class="btn btn-secondary btn-sm" title="Reconnect All Streams (R)">
+            <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+            <span>Reconnect</span>
+            <kbd class="shortcut-kbd">R</kbd>
+        </button>
+        <button id="btn-fullscreen" class="btn btn-secondary btn-sm" title="Toggle Fullscreen (F)">
+            <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+            <span>Fullscreen</span>
+            <kbd class="shortcut-kbd">F</kbd>
+        </button>
+    </div>
+</header>
 
-    if (streams.length > 1) {
-        document.body.className = 'flex';
-    }
+<!-- Streams Container -->
+<main id="stream-container" class="stream-grid-container">
+</main>
 
-    const background = params.get('background') !== 'false';
-    const width = '1 0 ' + (params.get('width') || '320px');
-
-    for (let i = 0; i < streams.length; i++) {
-        /** @type {VideoStream} */
-        const video = document.createElement('video-stream');
-        video.background = background;
-        video.mode = modes[i] || video.mode;
-        video.style.flex = width;
-        video.src = new URL('api/ws?src=' + encodeURIComponent(streams[i]), location.href);
-        document.body.appendChild(video);
-    }
-
-    document.title = streams.join('/') + ' - go2rtc';
-</script>
+<script src="js/main.js"></script>
+<script src="js/camera-frame.js"></script>
+<script type="module" src="js/video-stream.js"></script>
+<script type="module" src="js/stream.js"></script>
 </body>
 </html>

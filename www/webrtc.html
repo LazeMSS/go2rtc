@@ -1,107 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>webrtc - go2rtc</title>
-    <style>
-        body {
-            background-color: black;
-            margin: 0;
-            padding: 0;
-        }
-
-        html, body, video {
-            height: 100%;
-            width: 100%;
-        }
-    </style>
+    <title>WebRTC Player - go2rtc</title>
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" href="style.css">
 </head>
-<body>
-<video id="video" autoplay controls playsinline muted></video>
-<script>
-    async function PeerConnection(media) {
-        const pc = new RTCPeerConnection({
-            iceServers: [{urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302']}]
-        });
+<body class="stream-body-page">
 
-        const localTracks = [];
+<!-- Top Navigation Bar -->
+<header class="stream-nav-bar" id="stream-nav">
+    <div class="stream-nav-left">
+        <a href="index.html" id="btn-back" class="btn btn-secondary btn-sm" title="Back to Streams">
+            <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+            Back
+        </a>
+        <div class="stream-page-title">
+            <span class="status-dot"></span>
+            <span id="nav-title">WebRTC Stream</span>
+            <span class="badge badge-idle" id="nav-mode">WebRTC</span>
+        </div>
+    </div>
 
-        if (/camera|microphone/.test(media)) {
-            const tracks = await getMediaTracks('user', {
-                video: media.indexOf('camera') >= 0,
-                audio: media.indexOf('microphone') >= 0,
-            });
-            tracks.forEach(track => {
-                pc.addTransceiver(track, {direction: 'sendonly'});
-                if (track.kind === 'video') localTracks.push(track);
-            });
-        }
+    <div class="stream-nav-right">
+        <button type="button" id="btn-reconnect" class="btn btn-secondary btn-sm" title="Reconnect WebRTC">
+            <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+            Reconnect
+        </button>
+        <button type="button" id="btn-fullscreen" class="btn btn-secondary btn-sm" title="Toggle Fullscreen">
+            <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+            Fullscreen
+        </button>
+    </div>
+</header>
 
-        if (media.indexOf('display') >= 0) {
-            const tracks = await getMediaTracks('display', {
-                video: true,
-                audio: media.indexOf('speaker') >= 0,
-            });
-            tracks.forEach(track => {
-                pc.addTransceiver(track, {direction: 'sendonly'});
-                if (track.kind === 'video') localTracks.push(track);
-            });
-        }
+<!-- Video Container Frame -->
+<main id="stream-container" class="stream-grid-container single-stream">
+    <camera-frame id="stream-frame" title="WebRTC Player" links has-unmute>
+        <video id="video" autoplay playsinline muted></video>
+    </camera-frame>
+</main>
 
-        if (/video|audio/.test(media)) {
-            const tracks = ['video', 'audio']
-                .filter(kind => media.indexOf(kind) >= 0)
-                .map(kind => pc.addTransceiver(kind, {direction: 'recvonly'}).receiver.track);
-            localTracks.push(...tracks);
-        }
-
-        document.getElementById('video').srcObject = new MediaStream(localTracks);
-
-        return pc;
-    }
-
-    async function getMediaTracks(media, constraints) {
-        try {
-            const stream = media === 'user'
-                ? await navigator.mediaDevices.getUserMedia(constraints)
-                : await navigator.mediaDevices.getDisplayMedia(constraints);
-            return stream.getTracks();
-        } catch (e) {
-            console.warn(e);
-            return [];
-        }
-    }
-
-    async function connect(media) {
-        const pc = await PeerConnection(media);
-        const url = new URL('api/ws' + location.search, location.href);
-        const ws = new WebSocket('ws' + url.toString().substring(4));
-
-        ws.addEventListener('open', () => {
-            pc.addEventListener('icecandidate', ev => {
-                if (!ev.candidate) return;
-                const msg = {type: 'webrtc/candidate', value: ev.candidate.candidate};
-                ws.send(JSON.stringify(msg));
-            });
-
-            pc.createOffer().then(offer => pc.setLocalDescription(offer)).then(() => {
-                const msg = {type: 'webrtc/offer', value: pc.localDescription.sdp};
-                ws.send(JSON.stringify(msg));
-            });
-        });
-
-        ws.addEventListener('message', ev => {
-            const msg = JSON.parse(ev.data);
-            if (msg.type === 'webrtc/candidate') {
-                pc.addIceCandidate({candidate: msg.value, sdpMid: '0'});
-            } else if (msg.type === 'webrtc/answer') {
-                pc.setRemoteDescription({type: 'answer', sdp: msg.value});
-            }
-        });
-    }
-
-    const media = new URLSearchParams(location.search).get('media');
-    connect(media || 'video+audio');
-</script>
+<script src="js/camera-frame.js"></script>
+<script src="js/main.js"></script>
+<script src="js/webrtc.js"></script>
 </body>
 </html>

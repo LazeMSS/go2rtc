@@ -74,6 +74,7 @@ func (s *Stream) RemoveConsumer(cons core.Consumer) {
 	s.mu.Unlock()
 
 	s.stopProducers()
+	notifyChange()
 }
 
 func (s *Stream) AddProducer(prod core.Producer) {
@@ -119,6 +120,7 @@ producers:
 }
 
 func (s *Stream) MarshalJSON() ([]byte, error) {
+	s.mu.Lock()
 	var info = struct {
 		Producers []*Producer     `json:"producers"`
 		Consumers []core.Consumer `json:"consumers"`
@@ -126,5 +128,6 @@ func (s *Stream) MarshalJSON() ([]byte, error) {
 		Producers: s.producers,
 		Consumers: s.consumers,
 	}
+	s.mu.Unlock()
 	return json.Marshal(info)
 }

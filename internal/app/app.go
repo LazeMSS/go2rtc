@@ -72,6 +72,7 @@ func Init() {
 
 	platform := fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
 	Logger.Info().Str("version", Version).Str("platform", platform).Str("revision", revision).Msg("go2rtc")
+	Logger.Info().Msg("[app] service started")
 	Logger.Debug().Str("version", runtime.Version()).Str("vcs.time", vcsTime).Msg("build")
 
 	if ConfigPath != "" {

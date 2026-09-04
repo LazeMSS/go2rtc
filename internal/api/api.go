@@ -1,12 +1,15 @@
 package api
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -34,6 +37,7 @@ func Init() {
 			UnixListen string `yaml:"unix_listen"`
 
 			AllowPaths []string `yaml:"allow_paths"`
+			CSP        string   `yaml:"csp"`
 		} `yaml:"api"`
 	}
 
@@ -49,6 +53,11 @@ func Init() {
 
 	allowPaths = cfg.Mod.AllowPaths
 	basePath = cfg.Mod.BasePath
+	if cfg.Mod.CSP == "none" || cfg.Mod.CSP == "off" {
+		cspHeader = ""
+	} else if cfg.Mod.CSP != "" {
+		cspHeader = cfg.Mod.CSP
+	}
 	log = app.GetLogger("api")
 
 	initStatic(cfg.Mod.StaticDir)
@@ -261,9 +270,11 @@ func exitHandler(w http.ResponseWriter, r *http.Request) {
 	os.Exit(code)
 }
 
+const ExitCodeRestart = 100
+
 func restartHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
-		http.Error(w, "", http.StatusBadRequest)
+		http.Error(w, "Method not allowed", http.StatusBadRequest)
 		return
 	}
 
@@ -273,15 +284,108 @@ func restartHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Debug().Msgf("[api] restart %s", path)
+	log.Info().Str("path", path).Msg("[api] server restart requested via web UI")
+	Response(w, "OK", "text/plain")
 
-	go syscall.Exec(path, os.Args, os.Environ())
+	go func() {
+		// Wait briefly so the HTTP 200 response is fully sent to the browser
+		time.Sleep(300 * time.Millisecond)
+
+		if runtime.GOOS == "windows" {
+			// If running under supervisor, exiting with ExitCodeRestart causes the
+			// supervisor process to immediately respawn go2rtc in the exact same console
+			// window without the shell prompt interrupting or logs disappearing.
+			if os.Getenv("GO2RTC_SUPERVISOR") == "1" {
+				log.Info().Msg("[api] exiting with restart code for supervisor")
+				os.Exit(ExitCodeRestart)
+				return
+			}
+
+			// Fallback if not running under supervisor:
+			var argList []string
+			for _, a := range os.Args[1:] {
+				argList = append(argList, fmt.Sprintf("'%s'", strings.ReplaceAll(a, "'", "''")))
+			}
+			psCmd := fmt.Sprintf("Start-Sleep -Milliseconds 800; & '%s' %s", strings.ReplaceAll(path, "'", "''"), strings.Join(argList, " "))
+			cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", psCmd)
+			if err := cmd.Start(); err != nil {
+				log.Error().Err(err).Msg("[api] failed to spawn restart process on Windows")
+				return
+			}
+			log.Info().Msg("[api] new process scheduled, exiting current process")
+			os.Exit(0)
+		} else {
+			// On POSIX (Linux/macOS), replace process image via syscall.Exec
+			if err := syscall.Exec(path, os.Args, os.Environ()); err != nil {
+				log.Error().Err(err).Msg("[api] syscall.Exec failed, attempting exec.Command fallback")
+				cmd := exec.Command(path, os.Args[1:]...)
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				cmd.Stdin = os.Stdin
+				cmd.Env = os.Environ()
+				if err := cmd.Start(); err == nil {
+					os.Exit(0)
+				}
+			}
+		}
+	}()
 }
 
 func logHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
-		// Send current state of the log file immediately
+		if r.Header.Get("Accept") == "text/event-stream" || r.URL.Query().Has("stream") {
+			flusher, ok := w.(http.Flusher)
+			if !ok {
+				http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Connection", "keep-alive")
+			w.Header().Set("X-Accel-Buffering", "no")
+
+			// Subscribe to live log updates
+			ch, unsubscribe := app.MemoryLog.Subscribe(512)
+			defer unsubscribe()
+
+			// Dump initial history snapshot
+			var initBuf bytes.Buffer
+			_, _ = app.MemoryLog.WriteTo(&initBuf)
+			if initBuf.Len() > 0 {
+				lines := bytes.Split(initBuf.Bytes(), []byte("\n"))
+				for _, line := range lines {
+					line = bytes.TrimSpace(line)
+					if len(line) > 0 {
+						_, _ = fmt.Fprintf(w, "data: %s\n\n", line)
+					}
+				}
+				flusher.Flush()
+			}
+
+			// Stream live incoming lines
+			for {
+				select {
+				case <-r.Context().Done():
+					return
+				case line, ok := <-ch:
+					if !ok {
+						return
+					}
+					lines := bytes.Split(line, []byte("\n"))
+					for _, l := range lines {
+						l = bytes.TrimSpace(l)
+						if len(l) > 0 {
+							_, _ = fmt.Fprintf(w, "data: %s\n\n", l)
+						}
+					}
+					flusher.Flush()
+				}
+			}
+		}
+
+		// Send current state of the log file immediately (standard non-streaming GET)
 		w.Header().Set("Content-Type", "application/jsonlines")
 		_, _ = app.MemoryLog.WriteTo(w)
 	case "DELETE":

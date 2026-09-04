@@ -21,8 +21,8 @@ This folder contains static HTTP and JS content that is embedded into the applic
 ## JavaScript API
 
 - You can write your viewer from the scratch
-- You can extend the built-in viewer - `www/video-rtc.js`
-- Check example - `www/video-stream.js`
+- You can extend the built-in viewer - `www/js/video-rtc.js`
+- Check example - `www/js/video-stream.js`
 - Check example - https://github.com/AlexxIT/WebRTC
 
 `video-rtc.js` features:

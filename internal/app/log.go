@@ -118,13 +118,18 @@ const (
 )
 
 type circularBuffer struct {
-	chunks [][]byte
-	r, w   int
-	mu     sync.Mutex
+	chunks    [][]byte
+	r, w      int
+	mu        sync.Mutex
+	listeners map[chan []byte]struct{}
+	listMu    sync.RWMutex
 }
 
 func newBuffer() *circularBuffer {
-	b := &circularBuffer{chunks: make([][]byte, 0, chunkCount)}
+	b := &circularBuffer{
+		chunks:    make([][]byte, 0, chunkCount),
+		listeners: make(map[chan []byte]struct{}),
+	}
 	// create first chunk
 	b.chunks = append(b.chunks, make([]byte, 0, chunkSize))
 	return b
@@ -159,6 +164,22 @@ func (b *circularBuffer) Write(p []byte) (n int, err error) {
 
 	b.chunks[b.w] = append(b.chunks[b.w], p...)
 	b.mu.Unlock()
+
+	// Broadcast to active real-time subscribers outside the buffer lock
+	b.listMu.RLock()
+	if len(b.listeners) > 0 {
+		cp := make([]byte, len(p))
+		copy(cp, p)
+		for ch := range b.listeners {
+			select {
+			case ch <- cp:
+			default:
+				// non-blocking drop if subscriber's channel is saturated
+			}
+		}
+	}
+	b.listMu.RUnlock()
+
 	return
 }
 
@@ -188,4 +209,42 @@ func (b *circularBuffer) Reset() {
 	b.r = 0
 	b.w = 0
 	b.mu.Unlock()
+
+	b.listMu.RLock()
+	if len(b.listeners) > 0 {
+		clearMsg := []byte("{\"level\":\"clear\",\"message\":\"logs cleared\"}\n")
+		for ch := range b.listeners {
+			select {
+			case ch <- clearMsg:
+			default:
+			}
+		}
+	}
+	b.listMu.RUnlock()
+}
+
+// Subscribe registers a new listener channel for real-time log streaming.
+func (b *circularBuffer) Subscribe(bufSize int) (ch chan []byte, unsubscribe func()) {
+	if bufSize <= 0 {
+		bufSize = 512
+	}
+	ch = make(chan []byte, bufSize)
+
+	b.listMu.Lock()
+	if b.listeners == nil {
+		b.listeners = make(map[chan []byte]struct{})
+	}
+	b.listeners[ch] = struct{}{}
+	b.listMu.Unlock()
+
+	var once sync.Once
+	unsubscribe = func() {
+		once.Do(func() {
+			b.listMu.Lock()
+			delete(b.listeners, ch)
+			b.listMu.Unlock()
+			close(ch)
+		})
+	}
+	return ch, unsubscribe
 }

@@ -1,54 +1,49 @@
 import {VideoRTC} from './video-rtc.js';
 
 /**
- * This is example, how you can extend VideoRTC player for your app.
- * Also you can check this example: https://github.com/AlexxIT/WebRTC
+ * Enhanced VideoStream player for go2rtc streaming application.
+ * Dispatches 'statechange' events when streaming protocol or connection state changes.
  */
-class VideoStream extends VideoRTC {
+export class VideoStream extends VideoRTC {
+    constructor() {
+        super();
+        this._currentMode = '';
+        this._currentStatus = '';
+    }
+
+    get currentMode() {
+        return this._currentMode;
+    }
+
+    get currentStatus() {
+        return this._currentStatus;
+    }
+
     set divMode(value) {
-        this.querySelector('.mode').innerText = value;
-        this.querySelector('.status').innerText = '';
+        this._currentMode = value;
+        this._currentStatus = '';
+        this.dispatchEvent(new CustomEvent('statechange', {
+            bubbles: true,
+            composed: true,
+            detail: { mode: this._currentMode, status: this._currentStatus }
+        }));
     }
 
     set divError(value) {
-        const state = this.querySelector('.mode').innerText;
-        if (state !== 'loading') return;
-        this.querySelector('.mode').innerText = 'error';
-        this.querySelector('.status').innerText = value;
+        if (this._currentMode !== 'loading' && this._currentMode !== '') return;
+        this._currentMode = 'error';
+        this._currentStatus = value;
+        this.dispatchEvent(new CustomEvent('statechange', {
+            bubbles: true,
+            composed: true,
+            detail: { mode: this._currentMode, status: this._currentStatus }
+        }));
     }
 
-    /**
-     * Custom GUI
-     */
     oninit() {
         console.debug('stream.oninit');
         super.oninit();
-
-        this.innerHTML = `
-        <style>
-        video-stream {
-            position: relative;
-        }
-        .info {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            padding: 12px;
-            color: white;
-            display: flex;
-            justify-content: space-between;
-            pointer-events: none;
-        }
-        </style>
-        <div class="info">
-            <div class="status"></div>
-            <div class="mode"></div>
-        </div>
-        `;
-
-        const info = this.querySelector('.info');
-        this.insertBefore(this.video, info);
+        this.appendChild(this.video);
     }
 
     onconnect() {
@@ -68,7 +63,7 @@ class VideoStream extends VideoRTC {
         const result = super.onopen();
 
         this.onmessage['stream'] = msg => {
-            console.debug('stream.onmessge', msg);
+            console.debug('stream.onmessage', msg);
             switch (msg.type) {
                 case 'error':
                     this.divError = msg.value;

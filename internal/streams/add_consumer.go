@@ -106,6 +106,8 @@ func (s *Stream) AddConsumer(cons core.Consumer) (err error) {
 	s.consumers = append(s.consumers, cons)
 	s.mu.Unlock()
 
+	notifyChange()
+
 	// there may be duplicates, but that's not a problem
 	for _, prod := range prodStarts {
 		prod.start()
