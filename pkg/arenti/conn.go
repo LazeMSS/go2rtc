@@ -21,6 +21,8 @@ type Conn struct {
 	*webrtc.Conn
 
 	client    *Client
+	dev       *Device
+	isBattery bool
 	wsConn    *websocket.Conn
 	sessionID string
 	callerID  string
@@ -203,9 +205,22 @@ func NewProducer(client *Client, dev *Device, rawURL string) (*Conn, error) {
 	webrtcConn.Protocol = "wss"
 	webrtcConn.URL = rawURL
 
+	isBattery := true
+	if strings.Contains(rawURL, "battery=false") || strings.Contains(rawURL, "battery=no") || strings.Contains(rawURL, "battery=0") {
+		isBattery = false
+	} else if strings.Contains(rawURL, "battery=true") || strings.Contains(rawURL, "battery=yes") || strings.Contains(rawURL, "battery=1") {
+		isBattery = true
+	} else if client.Battery != nil {
+		isBattery = *client.Battery
+	} else if dev != nil && dev.Category == "ipc" && dev.Battery == 0 {
+		isBattery = false
+	}
+
 	conn := &Conn{
 		Conn:      webrtcConn,
 		client:    client,
+		dev:       dev,
+		isBattery: isBattery,
 		wsConn:    wsConn,
 		sessionID: sessionID,
 		callerID:  callerID,
@@ -474,7 +489,7 @@ func parseCandidate(rawParams json.RawMessage) *pion.ICECandidateInit {
 	return nil
 }
 
-// Stop sends MTS "close" to put camera back to sleep (saving battery) and closes resources.
+// Stop sends MTS "close" to put battery cameras back to sleep (saving battery) and closes resources.
 func (c *Conn) Stop() error {
 	c.closeOnce.Do(func() {
 		close(c.done)
@@ -482,18 +497,20 @@ func (c *Conn) Stop() error {
 			c.ticker.Stop()
 		}
 
-		// Put camera back to sleep
-		closeMsg := map[string]interface{}{
-			"action": "req",
-			"cmd":    "mts",
-			"method": "close",
-			"sid":    c.sessionID,
-			"params": map[string]string{
-				"caller": c.callerID,
-				"callee": c.callee,
-			},
+		if c.isBattery {
+			// Put battery camera back to sleep
+			closeMsg := map[string]interface{}{
+				"action": "req",
+				"cmd":    "mts",
+				"method": "close",
+				"sid":    c.sessionID,
+				"params": map[string]string{
+					"caller": c.callerID,
+					"callee": c.callee,
+				},
+			}
+			_ = c.wsConn.WriteJSON(closeMsg)
 		}
-		_ = c.wsConn.WriteJSON(closeMsg)
 		_ = c.wsConn.Close()
 	})
 

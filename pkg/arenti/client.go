@@ -66,6 +66,7 @@ type Client struct {
 	UserID      int64
 	UserToken   string
 	WssDomain   string
+	Battery     *bool
 
 	httpClient *http.Client
 	mu         sync.RWMutex
@@ -84,6 +85,12 @@ func NewClient(account, password, countryCode string) *Client {
 		BaseURL:     ResolveBaseURL(cc, "", ""),
 		httpClient:  &http.Client{Timeout: 15 * time.Second},
 	}
+}
+
+func (c *Client) SetBattery(battery bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.Battery = &battery
 }
 
 func (c *Client) SetRegion(region string) {

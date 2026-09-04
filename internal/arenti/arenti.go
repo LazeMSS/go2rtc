@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/AlexxIT/go2rtc/internal/api"
 	"github.com/AlexxIT/go2rtc/internal/app"
@@ -21,6 +22,30 @@ type AccountConfig struct {
 	CountryCode string `yaml:"country_code"`
 	Region      string `yaml:"region"`
 	Server      string `yaml:"server"`
+	Battery     *bool  `yaml:"battery"`
+}
+
+func parseBattery(v any) *bool {
+	if v == nil {
+		return nil
+	}
+	switch val := v.(type) {
+	case bool:
+		return &val
+	case string:
+		switch strings.ToLower(strings.TrimSpace(val)) {
+		case "no", "false", "0":
+			b := false
+			return &b
+		case "yes", "true", "1":
+			b := true
+			return &b
+		}
+	case int:
+		b := val != 0
+		return &b
+	}
+	return nil
 }
 
 var (
@@ -31,7 +56,8 @@ var (
 
 func Init() {
 	var v struct {
-		Cfg map[string]any `yaml:"arenti"`
+		Streams map[string]any `yaml:"streams"`
+		Cfg     map[string]any `yaml:"arenti"`
 	}
 	app.LoadConfig(&v)
 
@@ -47,12 +73,14 @@ func Init() {
 			}
 			reg, _ := v.Cfg["region"].(string)
 			srv, _ := v.Cfg["server"].(string)
+			bat := parseBattery(v.Cfg["battery"])
 			accounts[u] = AccountConfig{
 				Username:    u,
 				Password:    p,
 				CountryCode: c,
 				Region:      reg,
 				Server:      srv,
+				Battery:     bat,
 			}
 		} else {
 			for key, val := range v.Cfg {
@@ -64,12 +92,14 @@ func Init() {
 					}
 					reg, _ := m["region"].(string)
 					srv, _ := m["server"].(string)
+					bat := parseBattery(m["battery"])
 					accounts[key] = AccountConfig{
 						Username:    key,
 						Password:    p,
 						CountryCode: c,
 						Region:      reg,
 						Server:      srv,
+						Battery:     bat,
 					}
 				}
 			}
@@ -87,6 +117,71 @@ func Init() {
 	})
 
 	api.HandleFunc("api/arenti", apiArenti)
+
+	if len(v.Streams) > 0 {
+		time.AfterFunc(1500*time.Millisecond, func() {
+			for name, item := range v.Streams {
+				checkAutoPreload(name, item)
+			}
+		})
+	}
+}
+
+func checkAutoPreload(name string, item any) {
+	var urls []string
+	switch val := item.(type) {
+	case string:
+		urls = []string{val}
+	case []string:
+		urls = val
+	case []any:
+		for _, s := range val {
+			if str, ok := s.(string); ok {
+				urls = append(urls, str)
+			}
+		}
+	}
+
+	for _, rawURL := range urls {
+		if !strings.HasPrefix(rawURL, "arenti://") && !strings.HasPrefix(rawURL, "arenti:") {
+			continue
+		}
+
+		accountEmail, _, _, _, _, battery, _, err := parseURL(rawURL)
+		if err != nil {
+			continue
+		}
+
+		isBattery := true
+		if battery != nil {
+			isBattery = *battery
+		} else {
+			mu.RLock()
+			var cfg AccountConfig
+			var ok bool
+			if accountEmail != "" {
+				cfg, ok = accounts[accountEmail]
+			} else {
+				for _, a := range accounts {
+					cfg = a
+					ok = true
+					break
+				}
+			}
+			mu.RUnlock()
+
+			if ok && cfg.Battery != nil {
+				isBattery = *cfg.Battery
+			}
+		}
+
+		// If explicitly marked as NOT battery-powered (wired / AC camera), keep connected via preload
+		if !isBattery {
+			log := app.GetLogger("arenti")
+			log.Info().Msgf("arenti: keeping wired camera always connected (preload): %s", name)
+			_ = streams.AddPreload(name, "")
+		}
+	}
 }
 
 func getClient(email string) (*arenti.Client, error) {
@@ -108,6 +203,9 @@ func getClient(email string) (*arenti.Client, error) {
 	} else if cfg.Region != "" {
 		client.SetRegion(cfg.Region)
 	}
+	if cfg.Battery != nil {
+		client.SetBattery(*cfg.Battery)
+	}
 
 	if err := client.Login(); err != nil {
 		return nil, err
@@ -117,7 +215,7 @@ func getClient(email string) (*arenti.Client, error) {
 	return client, nil
 }
 
-func parseURL(rawURL string) (accountEmail, password, country, region, server, target string, err error) {
+func parseURL(rawURL string) (accountEmail, password, country, region, server string, battery *bool, target string, err error) {
 	s := strings.TrimPrefix(rawURL, "arenti://")
 	s = strings.TrimPrefix(s, "arenti:")
 
@@ -127,6 +225,9 @@ func parseURL(rawURL string) (accountEmail, password, country, region, server, t
 		country = q.Get("country")
 		region = q.Get("region")
 		server = q.Get("server")
+		if bStr := q.Get("battery"); bStr != "" {
+			battery = parseBattery(bStr)
+		}
 		if acc := q.Get("account"); acc != "" {
 			accountEmail = acc
 		}
@@ -155,14 +256,14 @@ func parseURL(rawURL string) (accountEmail, password, country, region, server, t
 	}
 	target = strings.TrimSpace(s)
 	if target == "" {
-		return "", "", "", "", "", "", errors.New("arenti: missing camera name or serial in url")
+		return "", "", "", "", "", nil, "", errors.New("arenti: missing camera name or serial in url")
 	}
 
-	return accountEmail, password, country, region, server, target, nil
+	return accountEmail, password, country, region, server, battery, target, nil
 }
 
 func dialProducer(rawURL string) (core.Producer, error) {
-	accountEmail, password, country, region, server, target, err := parseURL(rawURL)
+	accountEmail, password, country, region, server, battery, target, err := parseURL(rawURL)
 	if err != nil {
 		return nil, err
 	}
@@ -175,6 +276,9 @@ func dialProducer(rawURL string) (core.Producer, error) {
 			client.SetBaseURL(server)
 		} else if region != "" {
 			client.SetRegion(region)
+		}
+		if battery != nil {
+			client.SetBattery(*battery)
 		}
 		if err := client.Login(); err != nil {
 			return nil, err
@@ -297,6 +401,8 @@ func apiAuth(w http.ResponseWriter, r *http.Request) {
 	}
 	region := r.Form.Get("region")
 	server := r.Form.Get("server")
+	batteryStr := r.Form.Get("battery")
+	battery := parseBattery(batteryStr)
 
 	if email == "" || password == "" {
 		http.Error(w, "username and password required", http.StatusBadRequest)
@@ -308,6 +414,9 @@ func apiAuth(w http.ResponseWriter, r *http.Request) {
 		client.SetBaseURL(server)
 	} else if region != "" {
 		client.SetRegion(region)
+	}
+	if battery != nil {
+		client.SetBattery(*battery)
 	}
 	if err := client.Login(); err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -324,6 +433,9 @@ func apiAuth(w http.ResponseWriter, r *http.Request) {
 	if server != "" {
 		cfg["server"] = server
 	}
+	if batteryStr != "" {
+		cfg["battery"] = batteryStr
+	}
 
 	if err := app.PatchConfig([]string{"arenti", email}, cfg); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -337,6 +449,7 @@ func apiAuth(w http.ResponseWriter, r *http.Request) {
 		CountryCode: countryCode,
 		Region:      region,
 		Server:      server,
+		Battery:     battery,
 	}
 	clients[email] = client
 	mu.Unlock()
