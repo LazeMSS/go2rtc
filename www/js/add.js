@@ -32,6 +32,11 @@ const integrations = {
         desc: 'Connect Nest Cams and Google Doorbell streams using OAuth and Google SDM API.',
         icon: '<svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>'
     },
+    arenti: {
+        title: 'Arenti',
+        desc: 'Stream Arenti & Meari battery and wired cameras on-demand with automatic dormancy.',
+        icon: '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>'
+    },
     wyze: {
         title: 'Wyze',
         desc: 'Access Wyze Cam v2, v3, Pan, and battery cameras with official Wyze API keys.',
@@ -222,6 +227,9 @@ function triggerPanelAutoFetch(id) {
             break;
         case 'webtorrent':
             getSources('webtorrent-table', 'api/webtorrent');
+            break;
+        case 'arenti':
+            arentiReload();
             break;
         case 'wyze':
             wyzeReload();
@@ -444,6 +452,54 @@ document.getElementById('tuya-credentials-form').addEventListener('submit', asyn
     const query = new URLSearchParams(new FormData(ev.target));
     const url = new URL('api/tuya?' + query.toString(), location.href);
     await getSources('tuya-table', url.toString());
+});
+
+// Arenti
+async function arentiReload() {
+    try {
+        const r = await fetch('api/arenti', {cache: 'no-cache'});
+        if (!r.ok) return;
+        const data = await r.json();
+        if (Array.isArray(data)) {
+            if (data.length > 0 && typeof data[0] === 'string') {
+                const selectCard = document.getElementById('arenti-select-card');
+                const users = document.getElementById('arenti-id');
+                if (selectCard && users) {
+                    selectCard.style.display = '';
+                    users.innerHTML = data.map(i => `<option value="${i}">${i}</option>`).join('');
+                }
+            } else {
+                drawTable(document.getElementById('arenti-table'), data);
+            }
+        }
+    } catch (e) {
+        console.warn('arenti reload error:', e);
+    }
+}
+
+document.getElementById('arenti-login-form')?.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const params = new URLSearchParams(new FormData(ev.target));
+    try {
+        const r = await fetch('api/arenti', {method: 'POST', body: params});
+        if (!r.ok) {
+            const txt = await r.text();
+            window.showToast('Arenti login failed: ' + txt, 'error');
+            return;
+        }
+        const data = await r.json();
+        drawTable(document.getElementById('arenti-table'), data);
+        window.showToast('Arenti login successful! Discovered cameras.', 'success');
+        arentiReload();
+    } catch (e) {
+        window.showToast('Arenti error: ' + e.message, 'error');
+    }
+});
+
+document.getElementById('arenti-devices-form')?.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const params = new URLSearchParams(new FormData(ev.target));
+    await getSources('arenti-table', 'api/arenti?' + params.toString());
 });
 
 // 10. Wyze
