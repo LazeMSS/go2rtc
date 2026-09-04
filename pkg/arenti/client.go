@@ -21,13 +21,40 @@ import (
 )
 
 const (
-	DefaultBaseURL    = "https://web-eu.arenti.net"
+	DefaultBaseURLEU  = "https://web-eu.arenti.net"
+	DefaultBaseURLUS  = "https://web-us.arenti.net"
+	DefaultBaseURL    = DefaultBaseURLEU
 	DefaultSourceApp  = "39"
 	MeariPasswordSalt = "https://www.mearitek.com/zh/home-cn/"
 	MeariRSAPublicKey = `-----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCS3LSuG7ttWGvFV+Cn6FCKqqMxe9kF81McQO+tc4H5n1FImoeDDM28z1mnGGSqJHNAUbiRzcHYL8VAblH7Lbo7SwDnQtm+gjRIl9yUuyLBlA39ry14+dqCEXaO9N4hNOeRbZUXxTB126DkvKQOxzfoU1/mnDji0gUCy/zcB1KNOwIDAQAB
 -----END PUBLIC KEY-----`
 )
+
+var americasCountries = map[string]bool{
+	"US": true, "CA": true, "MX": true, "BR": true, "AR": true, "CL": true,
+	"CO": true, "PE": true, "VE": true, "EC": true, "GT": true, "CU": true,
+	"BO": true, "DO": true, "HN": true, "PY": true, "SV": true, "NI": true,
+	"CR": true, "PA": true, "UY": true, "JM": true, "TT": true, "PR": true,
+	"VI": true, "BS": true, "BZ": true, "GY": true, "SR": true,
+}
+
+// ResolveBaseURL determines the appropriate regional REST API endpoint.
+func ResolveBaseURL(countryCode, region, server string) string {
+	if server != "" {
+		return strings.TrimRight(server, "/")
+	}
+	switch strings.ToLower(strings.TrimSpace(region)) {
+	case "us", "usa", "america", "americas":
+		return DefaultBaseURLUS
+	case "eu", "europe":
+		return DefaultBaseURLEU
+	}
+	if americasCountries[strings.ToUpper(strings.TrimSpace(countryCode))] {
+		return DefaultBaseURLUS
+	}
+	return DefaultBaseURLEU
+}
 
 type Client struct {
 	Account     string
@@ -48,14 +75,27 @@ func NewClient(account, password, countryCode string) *Client {
 	if countryCode == "" {
 		countryCode = "US"
 	}
+	cc := strings.ToUpper(countryCode)
 	return &Client{
 		Account:     account,
 		Password:    password,
-		CountryCode: strings.ToUpper(countryCode),
+		CountryCode: cc,
 		SourceApp:   DefaultSourceApp,
-		BaseURL:     DefaultBaseURL,
+		BaseURL:     ResolveBaseURL(cc, "", ""),
 		httpClient:  &http.Client{Timeout: 15 * time.Second},
 	}
+}
+
+func (c *Client) SetRegion(region string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.BaseURL = ResolveBaseURL(c.CountryCode, region, "")
+}
+
+func (c *Client) SetBaseURL(baseURL string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.BaseURL = strings.TrimRight(baseURL, "/")
 }
 
 // EncryptPassword performs RSA 1024-bit PKCS#1 v1.5 encryption on the salted password

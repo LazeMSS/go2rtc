@@ -89,7 +89,11 @@ func NewProducer(client *Client, dev *Device, rawURL string) (*Conn, error) {
 	// 3. Connect to Meari signaling WebSocket gateway
 	wssDomain := client.WssDomain
 	if wssDomain == "" {
-		wssDomain = "wss://wss-eu.mearicloud.com"
+		if strings.Contains(client.BaseURL, "web-us") {
+			wssDomain = "wss://wss-us.mearicloud.com"
+		} else {
+			wssDomain = "wss://wss-eu.mearicloud.com"
+		}
 	}
 
 	Log("arenti: connecting to wss %s (callee: %s)", wssDomain, callee)

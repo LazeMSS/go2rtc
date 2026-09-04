@@ -19,6 +19,8 @@ type AccountConfig struct {
 	Username    string `yaml:"username"`
 	Password    string `yaml:"password"`
 	CountryCode string `yaml:"country_code"`
+	Region      string `yaml:"region"`
+	Server      string `yaml:"server"`
 }
 
 var (
@@ -43,10 +45,14 @@ func Init() {
 			if c == "" {
 				c = "US"
 			}
+			reg, _ := v.Cfg["region"].(string)
+			srv, _ := v.Cfg["server"].(string)
 			accounts[u] = AccountConfig{
 				Username:    u,
 				Password:    p,
 				CountryCode: c,
+				Region:      reg,
+				Server:      srv,
 			}
 		} else {
 			for key, val := range v.Cfg {
@@ -56,10 +62,14 @@ func Init() {
 					if c == "" {
 						c = "US"
 					}
+					reg, _ := m["region"].(string)
+					srv, _ := m["server"].(string)
 					accounts[key] = AccountConfig{
 						Username:    key,
 						Password:    p,
 						CountryCode: c,
+						Region:      reg,
+						Server:      srv,
 					}
 				}
 			}
@@ -93,6 +103,12 @@ func getClient(email string) (*arenti.Client, error) {
 	}
 
 	client := arenti.NewClient(cfg.Username, cfg.Password, cfg.CountryCode)
+	if cfg.Server != "" {
+		client.SetBaseURL(cfg.Server)
+	} else if cfg.Region != "" {
+		client.SetRegion(cfg.Region)
+	}
+
 	if err := client.Login(); err != nil {
 		return nil, err
 	}
@@ -101,7 +117,7 @@ func getClient(email string) (*arenti.Client, error) {
 	return client, nil
 }
 
-func parseURL(rawURL string) (accountEmail, password, country, target string, err error) {
+func parseURL(rawURL string) (accountEmail, password, country, region, server, target string, err error) {
 	s := strings.TrimPrefix(rawURL, "arenti://")
 	s = strings.TrimPrefix(s, "arenti:")
 
@@ -109,6 +125,8 @@ func parseURL(rawURL string) (accountEmail, password, country, target string, er
 	if idx := strings.IndexByte(s, '?'); idx != -1 {
 		q, _ := url.ParseQuery(s[idx+1:])
 		country = q.Get("country")
+		region = q.Get("region")
+		server = q.Get("server")
 		if acc := q.Get("account"); acc != "" {
 			accountEmail = acc
 		}
@@ -137,14 +155,14 @@ func parseURL(rawURL string) (accountEmail, password, country, target string, er
 	}
 	target = strings.TrimSpace(s)
 	if target == "" {
-		return "", "", "", "", errors.New("arenti: missing camera name or serial in url")
+		return "", "", "", "", "", "", errors.New("arenti: missing camera name or serial in url")
 	}
 
-	return accountEmail, password, country, target, nil
+	return accountEmail, password, country, region, server, target, nil
 }
 
 func dialProducer(rawURL string) (core.Producer, error) {
-	accountEmail, password, country, target, err := parseURL(rawURL)
+	accountEmail, password, country, region, server, target, err := parseURL(rawURL)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +171,11 @@ func dialProducer(rawURL string) (core.Producer, error) {
 
 	if password != "" {
 		client = arenti.NewClient(accountEmail, password, country)
+		if server != "" {
+			client.SetBaseURL(server)
+		} else if region != "" {
+			client.SetRegion(region)
+		}
 		if err := client.Login(); err != nil {
 			return nil, err
 		}
@@ -272,6 +295,8 @@ func apiAuth(w http.ResponseWriter, r *http.Request) {
 	if countryCode == "" {
 		countryCode = "US"
 	}
+	region := r.Form.Get("region")
+	server := r.Form.Get("server")
 
 	if email == "" || password == "" {
 		http.Error(w, "username and password required", http.StatusBadRequest)
@@ -279,6 +304,11 @@ func apiAuth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := arenti.NewClient(email, password, countryCode)
+	if server != "" {
+		client.SetBaseURL(server)
+	} else if region != "" {
+		client.SetRegion(region)
+	}
 	if err := client.Login(); err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
@@ -287,6 +317,12 @@ func apiAuth(w http.ResponseWriter, r *http.Request) {
 	cfg := map[string]string{
 		"password":     password,
 		"country_code": countryCode,
+	}
+	if region != "" {
+		cfg["region"] = region
+	}
+	if server != "" {
+		cfg["server"] = server
 	}
 
 	if err := app.PatchConfig([]string{"arenti", email}, cfg); err != nil {
@@ -299,6 +335,8 @@ func apiAuth(w http.ResponseWriter, r *http.Request) {
 		Username:    email,
 		Password:    password,
 		CountryCode: countryCode,
+		Region:      region,
+		Server:      server,
 	}
 	clients[email] = client
 	mu.Unlock()

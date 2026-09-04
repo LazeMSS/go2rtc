@@ -86,4 +86,36 @@ func TestDefaultCountry(t *testing.T) {
 	if client.CountryCode != "US" {
 		t.Fatalf("expected default country code to be US, got %s", client.CountryCode)
 	}
+	if client.BaseURL != DefaultBaseURLUS {
+		t.Fatalf("expected default BaseURL to be US (%s), got %s", DefaultBaseURLUS, client.BaseURL)
+	}
+}
+
+func TestResolveBaseURL(t *testing.T) {
+	// Country-based
+	if url := ResolveBaseURL("US", "", ""); url != DefaultBaseURLUS {
+		t.Fatalf("expected US to resolve to %s, got %s", DefaultBaseURLUS, url)
+	}
+	if url := ResolveBaseURL("CA", "", ""); url != DefaultBaseURLUS {
+		t.Fatalf("expected CA to resolve to %s, got %s", DefaultBaseURLUS, url)
+	}
+	if url := ResolveBaseURL("DK", "", ""); url != DefaultBaseURLEU {
+		t.Fatalf("expected DK to resolve to %s, got %s", DefaultBaseURLEU, url)
+	}
+	if url := ResolveBaseURL("DE", "", ""); url != DefaultBaseURLEU {
+		t.Fatalf("expected DE to resolve to %s, got %s", DefaultBaseURLEU, url)
+	}
+
+	// Region override
+	if url := ResolveBaseURL("DK", "us", ""); url != DefaultBaseURLUS {
+		t.Fatalf("expected region 'us' to override to %s, got %s", DefaultBaseURLUS, url)
+	}
+	if url := ResolveBaseURL("US", "eu", ""); url != DefaultBaseURLEU {
+		t.Fatalf("expected region 'eu' to override to %s, got %s", DefaultBaseURLEU, url)
+	}
+
+	// Server override
+	if url := ResolveBaseURL("US", "eu", "https://custom.arenti.net/"); url != "https://custom.arenti.net" {
+		t.Fatalf("expected server override, got %s", url)
+	}
 }
