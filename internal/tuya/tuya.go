@@ -8,51 +8,147 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
+	"sync"
 
 	"github.com/AlexxIT/go2rtc/internal/api"
+	"github.com/AlexxIT/go2rtc/internal/app"
 	"github.com/AlexxIT/go2rtc/internal/streams"
 	"github.com/AlexxIT/go2rtc/pkg/core"
 	"github.com/AlexxIT/go2rtc/pkg/tuya"
 )
 
+type AccountConfig struct {
+	Email    string `yaml:"email"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	Region   string `yaml:"region"`
+}
+
+type TuyaAccountSummary struct {
+	Email  string `json:"email"`
+	Region string `json:"region"`
+}
+
+type TuyaResponse struct {
+	Sources    []*api.Source       `json:"sources"`
+	Account    *TuyaAccountSummary `json:"account,omitempty"`
+	IsExisting bool                `json:"is_existing,omitempty"`
+}
+
+var (
+	accounts map[string]AccountConfig
+	mu       sync.RWMutex
+)
+
 func Init() {
+	var v struct {
+		Cfg map[string]any `yaml:"tuya"`
+	}
+	app.LoadConfig(&v)
+
+	accounts = make(map[string]AccountConfig)
+
+	if v.Cfg != nil {
+		if u, ok := v.Cfg["username"].(string); ok && u != "" {
+			p, _ := v.Cfg["password"].(string)
+			r, _ := v.Cfg["region"].(string)
+			accounts[u] = AccountConfig{Email: u, Username: u, Password: p, Region: r}
+		} else if e, ok := v.Cfg["email"].(string); ok && e != "" {
+			p, _ := v.Cfg["password"].(string)
+			r, _ := v.Cfg["region"].(string)
+			accounts[e] = AccountConfig{Email: e, Username: e, Password: p, Region: r}
+		} else {
+			for key, val := range v.Cfg {
+				if m, ok := val.(map[string]any); ok {
+					p, _ := m["password"].(string)
+					r, _ := m["region"].(string)
+					accounts[key] = AccountConfig{Email: key, Username: key, Password: p, Region: r}
+				}
+			}
+		}
+	}
+
 	streams.HandleFunc("tuya", func(source string) (core.Producer, error) {
+		source = checkTuyaSource(source)
 		return tuya.Dial(source)
 	})
 
 	api.HandleFunc("api/tuya", apiTuya)
 }
 
-func apiTuya(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	region := query.Get("region")
-	email := query.Get("email")
-	password := query.Get("password")
-
-	if email == "" || password == "" || region == "" {
-		http.Error(w, "email, password and region are required", http.StatusBadRequest)
-		return
+func checkTuyaSource(source string) string {
+	u, err := url.Parse(source)
+	if err != nil {
+		return source
 	}
 
-	var tuyaRegion *tuya.Region
-	for _, r := range tuya.AvailableRegions {
-		if r.Host == region {
-			tuyaRegion = &r
+	q := u.Query()
+	if q.Get("email") != "" && q.Get("password") != "" {
+		return source
+	}
+
+	mu.RLock()
+	defer mu.RUnlock()
+
+	if len(accounts) == 0 {
+		return source
+	}
+
+	var account AccountConfig
+	if accEmail := q.Get("account"); accEmail != "" {
+		if a, ok := accounts[accEmail]; ok {
+			account = a
+		}
+	}
+	if account.Email == "" {
+		for _, a := range accounts {
+			account = a
 			break
 		}
 	}
 
-	if tuyaRegion == nil {
-		http.Error(w, fmt.Sprintf("invalid region: %s", region), http.StatusBadRequest)
-		return
+	if account.Email == "" {
+		return source
 	}
 
+	if q.Get("device_id") == "" {
+		if u.Hostname() != "" && !strings.Contains(u.Hostname(), ".") {
+			q.Set("device_id", u.Hostname())
+			if account.Region != "" {
+				u.Host = account.Region
+			}
+		} else if p := strings.TrimPrefix(u.Path, "/"); p != "" {
+			q.Set("device_id", p)
+		}
+	}
+
+	if u.Hostname() == "" && account.Region != "" {
+		u.Host = account.Region
+	}
+
+	q.Set("email", account.Email)
+	q.Set("password", account.Password)
+	u.RawQuery = q.Encode()
+
+	return u.String()
+}
+
+func getTuyaRegion(region string) *tuya.Region {
+	for _, r := range tuya.AvailableRegions {
+		if r.Host == region {
+			return &r
+		}
+	}
+	return nil
+}
+
+func fetchTuyaDevices(tuyaRegion *tuya.Region, email, password string) ([]tuya.Device, error) {
 	httpClient := tuya.CreateHTTPClientWithSession()
 
 	_, err := login(httpClient, tuyaRegion.Host, email, password, tuyaRegion.Continent)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("login failed: %v", err), http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("login failed: %v", err)
 	}
 
 	tuyaAPI, err := tuya.NewTuyaSmartApiClient(
@@ -62,10 +158,8 @@ func apiTuya(w http.ResponseWriter, r *http.Request) {
 		password,
 		"",
 	)
-
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
 	var devices []tuya.Device
@@ -99,26 +193,196 @@ func apiTuya(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	return devices, nil
+}
+
+func apiTuya(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		apiDeviceList(w, r)
+	case http.MethodPost:
+		apiAuth(w, r)
+	default:
+		http.Error(w, "", http.StatusMethodNotAllowed)
+	}
+}
+
+func apiDeviceList(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	region := query.Get("region")
+	email := query.Get("email")
+	password := query.Get("password")
+
+	if email == "" || password == "" || region == "" {
+		mu.RLock()
+		if id := query.Get("id"); id != "" {
+			if a, ok := accounts[id]; ok {
+				email = a.Email
+				password = a.Password
+				region = a.Region
+			}
+		} else if len(accounts) == 1 {
+			for _, a := range accounts {
+				email = a.Email
+				password = a.Password
+				region = a.Region
+				break
+			}
+		} else if len(accounts) > 1 {
+			accountList := make([]string, 0, len(accounts))
+			for id := range accounts {
+				accountList = append(accountList, id)
+			}
+			mu.RUnlock()
+			api.ResponseJSON(w, accountList)
+			return
+		}
+		mu.RUnlock()
+	}
+
+	if email == "" || password == "" || region == "" {
+		http.Error(w, "email, password and region are required", http.StatusBadRequest)
+		return
+	}
+
+	tuyaRegion := getTuyaRegion(region)
+	if tuyaRegion == nil {
+		http.Error(w, fmt.Sprintf("invalid region: %s", region), http.StatusBadRequest)
+		return
+	}
+
+	devices, err := fetchTuyaDevices(tuyaRegion, email, password)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	if len(devices) == 0 {
 		http.Error(w, "no cameras found", http.StatusNotFound)
 		return
 	}
 
+	mu.RLock()
+	hasTopLevel := len(accounts) > 0
+	mu.RUnlock()
+
 	var items []*api.Source
 	for _, device := range devices {
-		cleanQuery := url.Values{}
-		cleanQuery.Set("device_id", device.DeviceId)
-		cleanQuery.Set("email", email)
-		cleanQuery.Set("password", password)
-		url := fmt.Sprintf("tuya://%s?%s", tuyaRegion.Host, cleanQuery.Encode())
+		var streamURL string
+		if hasTopLevel {
+			streamURL = fmt.Sprintf("tuya://%s?device_id=%s", tuyaRegion.Host, url.QueryEscape(device.DeviceId))
+		} else {
+			cleanQuery := url.Values{}
+			cleanQuery.Set("device_id", device.DeviceId)
+			cleanQuery.Set("email", email)
+			cleanQuery.Set("password", password)
+			streamURL = fmt.Sprintf("tuya://%s?%s", tuyaRegion.Host, cleanQuery.Encode())
+		}
 
 		items = append(items, &api.Source{
 			Name: device.DeviceName,
-			URL:  url,
+			URL:  streamURL,
 		})
 	}
 
-	api.ResponseSources(w, items)
+	api.ResponseJSON(w, &TuyaResponse{
+		Sources: items,
+		Account: &TuyaAccountSummary{
+			Email:  email,
+			Region: region,
+		},
+	})
+}
+
+func apiAuth(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	email := r.Form.Get("email")
+	if email == "" {
+		email = r.Form.Get("username")
+	}
+	password := r.Form.Get("password")
+	region := r.Form.Get("region")
+
+	mu.RLock()
+	existing, alreadyConfigured := accounts[email]
+	mu.RUnlock()
+
+	if password == "" && alreadyConfigured {
+		password = existing.Password
+	}
+	if region == "" && alreadyConfigured {
+		region = existing.Region
+	}
+
+	if email == "" || password == "" || region == "" {
+		http.Error(w, "email, password and region are required", http.StatusBadRequest)
+		return
+	}
+
+	tuyaRegion := getTuyaRegion(region)
+	if tuyaRegion == nil {
+		http.Error(w, fmt.Sprintf("invalid region: %s", region), http.StatusBadRequest)
+		return
+	}
+
+	devices, err := fetchTuyaDevices(tuyaRegion, email, password)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	isDuplicate := alreadyConfigured && existing.Password == password && existing.Region == region
+
+	if !isDuplicate {
+		var v struct {
+			Cfg map[string]any `yaml:"tuya"`
+		}
+		app.LoadConfig(&v)
+
+		if v.Cfg != nil && (v.Cfg["email"] == email || v.Cfg["username"] == email) {
+			_ = app.PatchConfig([]string{"tuya", "password"}, password)
+			_ = app.PatchConfig([]string{"tuya", "region"}, region)
+		} else {
+			cfg := map[string]string{
+				"password": password,
+				"region":   region,
+			}
+			if err := app.PatchConfig([]string{"tuya", email}, cfg); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		mu.Lock()
+		accounts[email] = AccountConfig{
+			Email:    email,
+			Username: email,
+			Password: password,
+			Region:   region,
+		}
+		mu.Unlock()
+	}
+
+	var items []*api.Source
+	for _, device := range devices {
+		items = append(items, &api.Source{
+			Name: device.DeviceName,
+			URL:  fmt.Sprintf("tuya://%s?device_id=%s", tuyaRegion.Host, url.QueryEscape(device.DeviceId)),
+		})
+	}
+
+	api.ResponseJSON(w, &TuyaResponse{
+		Sources: items,
+		Account: &TuyaAccountSummary{
+			Email:  email,
+			Region: region,
+		},
+		IsExisting: isDuplicate,
+	})
 }
 
 func login(client *http.Client, serverHost, email, password, countryCode string) (*tuya.LoginResult, error) {

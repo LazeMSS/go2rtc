@@ -353,7 +353,8 @@ function goToStep(step, integrationId) {
     }
 }
 
-function triggerPanelAutoFetch(id) {
+async function triggerPanelAutoFetch(id) {
+    await loadKnownStreams();
     switch (id) {
         case 'onvif':
             getSources('onvif-table', 'api/onvif');
@@ -384,6 +385,15 @@ function triggerPanelAutoFetch(id) {
             break;
         case 'webtorrent':
             getSources('webtorrent-table', 'api/webtorrent');
+            break;
+        case 'ring':
+            ringReload();
+            break;
+        case 'nest':
+            nestReload();
+            break;
+        case 'roborock':
+            roborockReload();
             break;
         case 'arenti':
             arentiReload();
@@ -581,6 +591,64 @@ document.getElementById('btn-rescan-hardware').addEventListener('click', () => g
 document.getElementById('btn-rescan-hass').addEventListener('click', () => getSources('hass-table', 'api/hass'));
 
 // 7. Ring
+function findRingCredentialsFromStreams() {
+    for (const urls of knownStreams.values()) {
+        for (const u of urls) {
+            if (u && (u.startsWith('ring:') || u.startsWith('ring://'))) {
+                try {
+                    const queryPart = u.includes('?') ? u.slice(u.indexOf('?') + 1) : '';
+                    const params = new URLSearchParams(queryPart);
+                    const token = params.get('refresh_token');
+                    if (token) return { refreshToken: token };
+                } catch (e) {}
+            }
+        }
+    }
+    return null;
+}
+
+async function ringReload() {
+    const creds = findRingCredentialsFromStreams();
+    if (creds && creds.refreshToken) {
+        const tokenForm = document.getElementById('ring-token-form');
+        if (tokenForm) {
+            const input = tokenForm.querySelector('[name="refresh_token"]');
+            if (input) input.value = creds.refreshToken;
+
+            let banner = document.getElementById('ring-account-status');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'ring-account-status';
+                banner.className = 'account-status-banner';
+                tokenForm.parentNode.insertBefore(banner, tokenForm);
+            }
+            banner.innerHTML = `
+                <div class="account-status-badge">
+                    <span class="status-dot"></span>
+                    <span>Configured in Active Streams: <strong>Ring Refresh Token Detected</strong></span>
+                </div>
+            `;
+        }
+        const table = document.getElementById('ring-table');
+        if (table) {
+            table.innerHTML = `<tbody><tr><td colspan="5" class="table-loading"><div class="table-loading-spinner"></div><span>Discovering Ring cameras...</span></td></tr></tbody>`;
+            try {
+                const r = await fetch('api/ring?refresh_token=' + encodeURIComponent(creds.refreshToken), {cache: 'no-cache'});
+                if (r.ok) {
+                    const data = await r.json();
+                    if (!data.needs_2fa) {
+                        await drawTable(table, data);
+                    }
+                } else {
+                    table.innerHTML = `<tbody><tr><td colspan="5" class="table-error-cell">Ring error: ${await r.text()}</td></tr></tbody>`;
+                }
+            } catch (e) {
+                table.innerHTML = `<tbody><tr><td colspan="5" class="table-error-cell">Network error: ${e.message}</td></tr></tbody>`;
+            }
+        }
+    }
+}
+
 async function handleRingAuth(ev) {
     ev.preventDefault();
     const table = document.getElementById('ring-table');
@@ -612,6 +680,70 @@ document.getElementById('ring-credentials-form').addEventListener('submit', hand
 document.getElementById('ring-token-form').addEventListener('submit', handleRingAuth);
 
 // 8. Nest
+function findNestCredentialsFromStreams() {
+    for (const urls of knownStreams.values()) {
+        for (const u of urls) {
+            if (u && (u.startsWith('nest:') || u.startsWith('nest://'))) {
+                try {
+                    const queryPart = u.includes('?') ? u.slice(u.indexOf('?') + 1) : '';
+                    const params = new URLSearchParams(queryPart);
+                    const clientId = params.get('client_id');
+                    const clientSecret = params.get('client_secret');
+                    const refreshToken = params.get('refresh_token');
+                    const projectId = params.get('project_id');
+                    if (clientId && refreshToken && projectId) {
+                        return { clientId, clientSecret, refreshToken, projectId };
+                    }
+                } catch (e) {}
+            }
+        }
+    }
+    return null;
+}
+
+async function nestReload() {
+    const creds = findNestCredentialsFromStreams();
+    if (creds) {
+        const form = document.getElementById('nest-form');
+        if (form) {
+            if (creds.clientId) form.querySelector('[name="client_id"]').value = creds.clientId;
+            if (creds.clientSecret) form.querySelector('[name="client_secret"]').value = creds.clientSecret;
+            if (creds.refreshToken) form.querySelector('[name="refresh_token"]').value = creds.refreshToken;
+            if (creds.projectId) form.querySelector('[name="project_id"]').value = creds.projectId;
+
+            let banner = document.getElementById('nest-account-status');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'nest-account-status';
+                banner.className = 'account-status-banner';
+                form.parentNode.insertBefore(banner, form);
+            }
+            banner.innerHTML = `
+                <div class="account-status-badge">
+                    <span class="status-dot"></span>
+                    <span>Configured in Active Streams: Project <strong>${escapeHtml(creds.projectId)}</strong></span>
+                </div>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-nest-edit-toggle">Edit Credentials</button>
+            `;
+            form.classList.add('account-configured-collapsed');
+            const toggleBtn = banner.querySelector('#btn-nest-edit-toggle');
+            if (toggleBtn) {
+                toggleBtn.onclick = () => {
+                    const isCollapsed = form.classList.toggle('account-configured-collapsed');
+                    toggleBtn.textContent = isCollapsed ? 'Edit Credentials' : 'Hide Form';
+                };
+            }
+        }
+        const params = new URLSearchParams({
+            client_id: creds.clientId,
+            client_secret: creds.clientSecret || '',
+            refresh_token: creds.refreshToken,
+            project_id: creds.projectId
+        });
+        await getSources('nest-table', 'api/nest?' + params.toString());
+    }
+}
+
 document.getElementById('nest-form').addEventListener('submit', async ev => {
     ev.preventDefault();
     const query = new URLSearchParams(new FormData(ev.target));
@@ -640,7 +772,7 @@ function findTuyaCredentialsFromStreams() {
     return null;
 }
 
-function prefillTuyaAccount(creds) {
+function prefillTuyaAccount(creds, isTopLevel = false) {
     const form = document.getElementById('tuya-credentials-form');
     if (!form || !creds) return;
 
@@ -652,9 +784,14 @@ function prefillTuyaAccount(creds) {
         const e = form.querySelector('[name="email"]');
         if (e) e.value = creds.email;
     }
-    if (creds.password) {
-        const p = form.querySelector('[name="password"]');
-        if (p) p.value = creds.password;
+    const p = form.querySelector('[name="password"]');
+    if (p) {
+        if (isTopLevel) {
+            p.placeholder = '•••••••• (Saved in config)';
+            p.required = false;
+        } else if (creds.password) {
+            p.value = creds.password;
+        }
     }
 
     let banner = document.getElementById('tuya-account-status');
@@ -664,10 +801,11 @@ function prefillTuyaAccount(creds) {
         banner.className = 'account-status-banner';
         form.parentNode.insertBefore(banner, form);
     }
+    const label = isTopLevel ? 'Configured Account' : 'Configured in Active Streams';
     banner.innerHTML = `
         <div class="account-status-badge">
             <span class="status-dot"></span>
-            <span>Configured in Active Streams: <strong>${escapeHtml(creds.email)}</strong></span>
+            <span>${label}: <strong>${escapeHtml(creds.email)}</strong> (${escapeHtml(creds.region || 'EU')})</span>
         </div>
         <button type="button" class="btn btn-sm btn-secondary" id="btn-tuya-edit-toggle">Edit Account</button>
     `;
@@ -683,9 +821,42 @@ function prefillTuyaAccount(creds) {
 }
 
 async function tuyaReload() {
+    try {
+        const r = await fetch('api/tuya', {cache: 'no-cache'});
+        if (r.ok) {
+            const data = await r.json();
+            if (Array.isArray(data)) {
+                if (data.length > 0 && typeof data[0] === 'string') {
+                    const selectCard = document.getElementById('tuya-select-card');
+                    const users = document.getElementById('tuya-id');
+                    if (selectCard && users) {
+                        selectCard.style.display = '';
+                        users.innerHTML = data.map(i => `<option value="${i}">${i}</option>`).join('');
+                    }
+                    const r0 = await fetch('api/tuya?id=' + encodeURIComponent(data[0]), {cache: 'no-cache'});
+                    if (r0.ok) {
+                        const d0 = await r0.json();
+                        if (d0.sources) await drawTable(document.getElementById('tuya-table'), d0);
+                        if (d0.account) prefillTuyaAccount(d0.account, true);
+                    }
+                    return;
+                }
+            } else if (data && data.sources) {
+                await drawTable(document.getElementById('tuya-table'), data);
+                if (data.account) {
+                    prefillTuyaAccount(data.account, true);
+                }
+                return;
+            }
+        }
+    } catch (e) {
+        console.warn('tuya reload error:', e);
+    }
+
+    // Fallback: search active streams
     const creds = findTuyaCredentialsFromStreams();
     if (creds) {
-        prefillTuyaAccount(creds);
+        prefillTuyaAccount(creds, false);
         const url = new URL('api/tuya', location.href);
         url.searchParams.set('region', creds.region);
         url.searchParams.set('email', creds.email);
@@ -694,11 +865,58 @@ async function tuyaReload() {
     }
 }
 
-document.getElementById('tuya-credentials-form').addEventListener('submit', async ev => {
+document.getElementById('tuya-credentials-form')?.addEventListener('submit', async ev => {
     ev.preventDefault();
-    const query = new URLSearchParams(new FormData(ev.target));
-    const url = new URL('api/tuya?' + query.toString(), location.href);
-    await getSources('tuya-table', url.toString());
+    const params = new URLSearchParams(new FormData(ev.target));
+    try {
+        const r = await fetch('api/tuya', {method: 'POST', body: params});
+        if (!r.ok) {
+            const txt = await r.text();
+            window.showToast('Tuya login failed: ' + txt, 'error');
+            return;
+        }
+        const data = await r.json();
+        if (data && data.sources) {
+            await drawTable(document.getElementById('tuya-table'), data);
+        }
+        if (data && data.account) {
+            prefillTuyaAccount(data.account, true);
+        }
+        if (data && data.is_existing) {
+            window.showToast('Account already in config. Discovered cameras.', 'info');
+        } else {
+            window.showToast('Tuya login successful! Saved to config.', 'success');
+        }
+    } catch (e) {
+        window.showToast('Tuya error: ' + e.message, 'error');
+    }
+});
+
+document.getElementById('tuya-id')?.addEventListener('change', async (ev) => {
+    const val = ev.target.value;
+    if (!val) return;
+    try {
+        const r = await fetch('api/tuya?id=' + encodeURIComponent(val), {cache: 'no-cache'});
+        if (r.ok) {
+            const d = await r.json();
+            if (d.sources) await drawTable(document.getElementById('tuya-table'), d);
+            if (d.account) prefillTuyaAccount(d.account, true);
+        }
+    } catch (e) {}
+});
+
+document.getElementById('tuya-devices-form')?.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const val = document.getElementById('tuya-id')?.value;
+    if (!val) return;
+    try {
+        const r = await fetch('api/tuya?id=' + encodeURIComponent(val), {cache: 'no-cache'});
+        if (r.ok) {
+            const d = await r.json();
+            if (d.sources) await drawTable(document.getElementById('tuya-table'), d);
+            if (d.account) prefillTuyaAccount(d.account, true);
+        }
+    } catch (e) {}
 });
 
 // Arenti
@@ -879,11 +1097,19 @@ async function wyzeReload() {
                 users.innerHTML = data.map(item => `<option value="${item}">${item}</option>`).join('');
                 if (data.length > 0) {
                     prefillWyzeAccount(data[0]);
+                    await getSources('wyze-table', 'api/wyze?id=' + encodeURIComponent(data[0]));
                 }
             }
         }
     } catch (e) {}
 }
+
+document.getElementById('wyze-id')?.addEventListener('change', async (ev) => {
+    const val = ev.target.value;
+    if (!val) return;
+    prefillWyzeAccount(val);
+    await getSources('wyze-table', 'api/wyze?id=' + encodeURIComponent(val));
+});
 
 document.getElementById('wyze-login-form').addEventListener('submit', async ev => {
     ev.preventDefault();
@@ -906,6 +1132,51 @@ document.getElementById('wyze-devices-form').addEventListener('submit', async ev
 });
 
 // 11. Xiaomi
+function prefillXiaomiAccount(userID) {
+    const form = document.getElementById('xiaomi-login-form');
+    if (!form || !userID) return;
+
+    let banner = document.getElementById('xiaomi-account-status');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'xiaomi-account-status';
+        banner.className = 'account-status-banner';
+        form.parentNode.insertBefore(banner, form);
+    }
+    banner.innerHTML = `
+        <div class="account-status-badge">
+            <span class="status-dot"></span>
+            <span>Configured Account: User ID <strong>${escapeHtml(userID)}</strong></span>
+        </div>
+        <button type="button" class="btn btn-sm btn-secondary" id="btn-xiaomi-edit-toggle">Add / Re-login Account</button>
+    `;
+
+    form.classList.add('account-configured-collapsed');
+    const toggleBtn = banner.querySelector('#btn-xiaomi-edit-toggle');
+    if (toggleBtn) {
+        toggleBtn.onclick = () => {
+            const isCollapsed = form.classList.toggle('account-configured-collapsed');
+            toggleBtn.textContent = isCollapsed ? 'Add / Re-login Account' : 'Hide Form';
+        };
+    }
+}
+
+function findXiaomiCredentialsFromStreams() {
+    for (const urls of knownStreams.values()) {
+        for (const u of urls) {
+            if (u && (u.startsWith('xiaomi://') || u.startsWith('xiaomi:'))) {
+                try {
+                    const parsed = new URL(u);
+                    const userID = parsed.username;
+                    const region = parsed.password;
+                    if (userID) return { userID, region };
+                } catch (e) {}
+            }
+        }
+    }
+    return null;
+}
+
 async function xiaomiReload() {
     document.getElementById('xiaomi-login-form').classList.remove('hidden');
     document.getElementById('xiaomi-captcha-form').classList.add('hidden');
@@ -916,10 +1187,37 @@ async function xiaomiReload() {
         if (r.ok) {
             const data = await r.json();
             const users = document.getElementById('xiaomi-id');
-            users.innerHTML = data.map(item => `<option value="${item}">${item}</option>`).join('');
+            if (users && Array.isArray(data)) {
+                users.innerHTML = data.map(item => `<option value="${item}">${item}</option>`).join('');
+                if (data.length > 0) {
+                    prefillXiaomiAccount(data[0]);
+                    const regionSelect = document.querySelector('#xiaomi-devices-form [name="region"]');
+                    const region = regionSelect ? regionSelect.value : 'cn';
+                    await getSources('xiaomi-table', `api/xiaomi?id=${encodeURIComponent(data[0])}&region=${encodeURIComponent(region)}`);
+                    return;
+                }
+            }
         }
     } catch (e) {}
+
+    const creds = findXiaomiCredentialsFromStreams();
+    if (creds && creds.userID) {
+        prefillXiaomiAccount(creds.userID);
+        if (creds.region) {
+            const regionSelect = document.querySelector('#xiaomi-devices-form [name="region"]');
+            if (regionSelect) regionSelect.value = creds.region;
+        }
+    }
 }
+
+document.getElementById('xiaomi-id')?.addEventListener('change', async (ev) => {
+    const val = ev.target.value;
+    if (!val) return;
+    prefillXiaomiAccount(val);
+    const regionSelect = document.querySelector('#xiaomi-devices-form [name="region"]');
+    const region = regionSelect ? regionSelect.value : 'cn';
+    await getSources('xiaomi-table', `api/xiaomi?id=${encodeURIComponent(val)}&region=${encodeURIComponent(region)}`);
+});
 
 async function xiaomiLogin(ev) {
     ev.preventDefault();
@@ -954,6 +1252,32 @@ document.getElementById('xiaomi-devices-form').addEventListener('submit', async 
 });
 
 // 12. Roborock
+async function roborockReload() {
+    try {
+        const r = await fetch('api/roborock', {cache: 'no-cache'});
+        if (r.ok) {
+            const form = document.getElementById('roborock-form');
+            if (form) {
+                let banner = document.getElementById('roborock-account-status');
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'roborock-account-status';
+                    banner.className = 'account-status-banner';
+                    form.parentNode.insertBefore(banner, form);
+                }
+                banner.innerHTML = `
+                    <div class="account-status-badge">
+                        <span class="status-dot"></span>
+                        <span>Active Session: <strong>Roborock Vacuum Connected</strong></span>
+                    </div>
+                `;
+                form.classList.add('account-configured-collapsed');
+            }
+            await getSources('roborock-table', r);
+        }
+    } catch (e) {}
+}
+
 document.getElementById('roborock-form').addEventListener('submit', async ev => {
     ev.preventDefault();
     const r = await fetch('api/roborock', {method: 'POST', body: new FormData(ev.target)});
