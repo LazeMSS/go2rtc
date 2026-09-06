@@ -106,7 +106,6 @@ function escapeHtml(str) {
 }
 
 const knownStreams = new Map(); // streamName -> Set of URLs
-let isKnownStreamsLoaded = false;
 
 async function loadKnownStreams() {
     try {
@@ -120,7 +119,6 @@ async function loadKnownStreams() {
                     knownStreams.set(name, new Set(urls));
                 }
             }
-            isKnownStreamsLoaded = true;
         }
     } catch (e) {
         console.warn('Failed to load active streams:', e);
@@ -143,7 +141,9 @@ loadKnownStreams();
 // =========================================================
 // Table Renderer
 // =========================================================
-function drawTable(table, data) {
+async function drawTable(table, data) {
+    await loadKnownStreams();
+
     if (!data || !data.sources || data.sources.length === 0) {
         table.innerHTML = `
             <tbody>
@@ -285,16 +285,13 @@ async function getSources(tableID, url) {
     `;
 
     try {
-        if (!isKnownStreamsLoaded) {
-            await loadKnownStreams();
-        }
         const r = typeof url === 'string' ? await fetch(url, {cache: 'no-cache'}) : url;
         if (!r.ok) {
             const errText = await r.text();
             table.innerHTML = `<tbody><tr><td colspan="6" class="table-error-cell">Error: ${errText || 'Failed to fetch sources'}</td></tr></tbody>`;
             return;
         }
-        drawTable(table, await r.json());
+        await drawTable(table, await r.json());
     } catch (e) {
         table.innerHTML = `<tbody><tr><td colspan="6" class="table-error-cell">Network error: ${e.message}</td></tr></tbody>`;
     }
@@ -595,7 +592,7 @@ async function handleRingAuth(ev) {
             table.innerHTML = `<tbody><tr><td colspan="5" class="table-info-cell">2FA code required. Check your phone and enter code above.</td></tr></tbody>`;
             return;
         }
-        drawTable(table, data);
+        await drawTable(table, data);
     } catch (e) {
         table.innerHTML = `<tbody><tr><td colspan="5" class="table-error-cell">Network error: ${e.message}</td></tr></tbody>`;
     }
@@ -637,7 +634,7 @@ async function arentiReload() {
                 }
             }
         } else if (data && data.sources) {
-            drawTable(document.getElementById('arenti-table'), data);
+            await drawTable(document.getElementById('arenti-table'), data);
         }
     } catch (e) {
         console.warn('arenti reload error:', e);
@@ -655,7 +652,7 @@ document.getElementById('arenti-login-form')?.addEventListener('submit', async e
             return;
         }
         const data = await r.json();
-        drawTable(document.getElementById('arenti-table'), data);
+        await drawTable(document.getElementById('arenti-table'), data);
         window.showToast('Arenti login successful! Discovered cameras.', 'success');
         arentiReload();
     } catch (e) {
@@ -688,7 +685,7 @@ document.getElementById('wyze-login-form').addEventListener('submit', async ev =
     if (r.ok) {
         window.showToast('Wyze login successful!', 'success');
         const data = await r.json();
-        drawTable(document.getElementById('wyze-table'), data);
+        await drawTable(document.getElementById('wyze-table'), data);
         wyzeReload();
     } else {
         window.showToast('Wyze error: ' + await r.text(), 'error');
