@@ -391,6 +391,9 @@ function triggerPanelAutoFetch(id) {
         case 'wyze':
             wyzeReload();
             break;
+        case 'tuya':
+            tuyaReload();
+            break;
         case 'xiaomi':
             xiaomiReload();
             break;
@@ -618,6 +621,79 @@ document.getElementById('nest-form').addEventListener('submit', async ev => {
 });
 
 // 9. Tuya
+function findTuyaCredentialsFromStreams() {
+    for (const urls of knownStreams.values()) {
+        for (const u of urls) {
+            if (u && u.startsWith('tuya://')) {
+                try {
+                    const parsed = new URL(u);
+                    const email = parsed.searchParams.get('email');
+                    const password = parsed.searchParams.get('password');
+                    const region = parsed.hostname;
+                    if (email && password) {
+                        return { email, password, region };
+                    }
+                } catch (e) {}
+            }
+        }
+    }
+    return null;
+}
+
+function prefillTuyaAccount(creds) {
+    const form = document.getElementById('tuya-credentials-form');
+    if (!form || !creds) return;
+
+    if (creds.region) {
+        const r = form.querySelector('[name="region"]');
+        if (r) r.value = creds.region;
+    }
+    if (creds.email) {
+        const e = form.querySelector('[name="email"]');
+        if (e) e.value = creds.email;
+    }
+    if (creds.password) {
+        const p = form.querySelector('[name="password"]');
+        if (p) p.value = creds.password;
+    }
+
+    let banner = document.getElementById('tuya-account-status');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'tuya-account-status';
+        banner.className = 'account-status-banner';
+        form.parentNode.insertBefore(banner, form);
+    }
+    banner.innerHTML = `
+        <div class="account-status-badge">
+            <span class="status-dot"></span>
+            <span>Configured in Active Streams: <strong>${escapeHtml(creds.email)}</strong></span>
+        </div>
+        <button type="button" class="btn btn-sm btn-secondary" id="btn-tuya-edit-toggle">Edit Account</button>
+    `;
+
+    form.classList.add('account-configured-collapsed');
+    const toggleBtn = banner.querySelector('#btn-tuya-edit-toggle');
+    if (toggleBtn) {
+        toggleBtn.onclick = () => {
+            const isCollapsed = form.classList.toggle('account-configured-collapsed');
+            toggleBtn.textContent = isCollapsed ? 'Edit Account' : 'Hide Form';
+        };
+    }
+}
+
+async function tuyaReload() {
+    const creds = findTuyaCredentialsFromStreams();
+    if (creds) {
+        prefillTuyaAccount(creds);
+        const url = new URL('api/tuya', location.href);
+        url.searchParams.set('region', creds.region);
+        url.searchParams.set('email', creds.email);
+        url.searchParams.set('password', creds.password);
+        await getSources('tuya-table', url.toString());
+    }
+}
+
 document.getElementById('tuya-credentials-form').addEventListener('submit', async ev => {
     ev.preventDefault();
     const query = new URLSearchParams(new FormData(ev.target));
