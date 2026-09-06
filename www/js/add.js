@@ -128,8 +128,12 @@ async function loadKnownStreams() {
 function isStreamAdded(name, url) {
     if (name && knownStreams.has(name)) return true;
     if (url) {
+        let encoded = url;
+        let decoded = url;
+        try { encoded = encodeURI(url); } catch (e) {}
+        try { decoded = decodeURI(url); } catch (e) {}
         for (const urls of knownStreams.values()) {
-            if (urls.has(url)) return true;
+            if (urls.has(url) || urls.has(encoded) || urls.has(decoded)) return true;
         }
     }
     return false;
@@ -229,9 +233,13 @@ document.addEventListener('click', async (ev) => {
         btn.innerHTML = `<span class="table-loading-spinner" style="width:12px;height:12px;display:inline-block;vertical-align:-2px;margin-right:4px;"></span>Adding...`;
 
         try {
+            // Encode spaces in stream URL if unescaped (e.g. "arenti://boat cam" -> "arenti://boat%20cam")
+            // to satisfy go2rtc's server-side source validation which forbids raw spaces.
+            const cleanUrl = streamUrl.includes(' ') ? encodeURI(streamUrl) : streamUrl;
+
             const url = new URL('api/streams', location.href);
             url.searchParams.set('name', streamName);
-            url.searchParams.set('src', streamUrl);
+            url.searchParams.set('src', cleanUrl);
             const r = await fetch(url, { method: 'PUT' });
 
             if (!r.ok) {
@@ -242,6 +250,7 @@ document.addEventListener('click', async (ev) => {
             if (!knownStreams.has(streamName)) {
                 knownStreams.set(streamName, new Set());
             }
+            knownStreams.get(streamName).add(cleanUrl);
             knownStreams.get(streamName).add(streamUrl);
 
             btn.className = 'btn btn-sm btn-stream-added';
