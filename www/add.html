@@ -82,6 +82,22 @@
                 </div>
             </div>
 
+            <!-- Arenti -->
+            <div class="wizard-card" data-id="arenti" data-cat="cloud" data-keywords="arenti meari boat snap inout outdoor indoor battery wifi camera">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">Cloud</span>
+                </div>
+                <div class="wizard-card-title">Arenti</div>
+                <div class="wizard-card-desc">Stream Arenti & Meari battery and wired cameras on-demand with automatic dormancy.</div>
+                <div class="wizard-card-footer">
+                    <span>Login & discover</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+
             <!-- Custom Stream -->
             <div class="wizard-card" data-id="stream" data-cat="camera" data-keywords="custom rtsp rtmp webrtc http hls url temporary mjpeg mp4 stream manual">
                 <div class="wizard-card-top">
@@ -628,6 +644,71 @@
                     </div>
                     <div class="table-responsive">
                         <table class="modern-table" id="tuya-table"></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel: Arenti -->
+            <div class="wizard-panel" data-panel="arenti">
+                <div class="info-banner">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                    <div>
+                        Battery-powered Arenti & Meari cameras only wake up when requested by active viewers, and automatically return to deep sleep (dormancy) when viewers disconnect to preserve battery life.
+                    </div>
+                </div>
+
+                <div class="form-card">
+                    <div class="form-card-title">Arenti Cloud Account Login</div>
+                    <form id="arenti-login-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Email / Account</label>
+                                <input type="email" name="username" class="form-input" placeholder="user@example.com" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Password</label>
+                                <input type="password" name="password" class="form-input" placeholder="••••••••" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Country Code</label>
+                                <input type="text" name="country_code" class="form-input" placeholder="US" value="US" maxlength="4">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Region / Server</label>
+                                <select name="region" class="form-select">
+                                    <option value="">Auto (based on Country)</option>
+                                    <option value="us">Americas (web-us.arenti.net)</option>
+                                    <option value="eu">Europe & Other (web-eu.arenti.net)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Login & Discover Cameras</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="form-card" id="arenti-select-card" style="display:none;">
+                    <div class="form-card-title">Select Configured Account</div>
+                    <form id="arenti-devices-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Select Account</label>
+                                <select id="arenti-id" name="id" class="form-select"></select>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary">Load Devices</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-card">
+                    <div class="form-card-title table-card-header">
+                        <span>Arenti Cameras</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table" id="arenti-table"></table>
                     </div>
                 </div>
             </div>
