@@ -50,34 +50,18 @@
         </div>
 
         <div class="wizard-grid" id="integration-grid">
-            <!-- Custom Stream -->
-            <div class="wizard-card" data-id="stream" data-cat="camera" data-keywords="custom rtsp rtmp webrtc http hls url temporary mjpeg mp4 stream manual">
+            <!-- ALSA (Linux audio) -->
+            <div class="wizard-card" data-id="alsa" data-cat="hardware" data-keywords="alsa linux audio soundcard microphone capture sound input">
                 <div class="wizard-card-top">
                     <div class="wizard-card-icon">
-                        <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                        <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
                     </div>
-                    <span class="wizard-card-badge badge-blue">Quick Add</span>
+                    <span class="wizard-card-badge">Linux</span>
                 </div>
-                <div class="wizard-card-title">Custom Stream</div>
-                <div class="wizard-card-desc">Add any RTSP, RTMP, HTTP, WebRTC, or file URL directly as a live stream.</div>
+                <div class="wizard-card-title">ALSA Audio</div>
+                <div class="wizard-card-desc">Detect Linux Advanced Linux Sound Architecture soundcards and microphone inputs.</div>
                 <div class="wizard-card-footer">
-                    <span>Configure stream</span>
-                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
-                </div>
-            </div>
-
-            <!-- ONVIF -->
-            <div class="wizard-card" data-id="onvif" data-cat="camera" data-keywords="onvif ip camera security cctv discover profile test rtsp">
-                <div class="wizard-card-top">
-                    <div class="wizard-card-icon">
-                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                    </div>
-                    <span class="wizard-card-badge badge-green">Auto-Discover</span>
-                </div>
-                <div class="wizard-card-title">ONVIF Cameras</div>
-                <div class="wizard-card-desc">Automatically discover ONVIF IP cameras on the local network and test stream URLs.</div>
-                <div class="wizard-card-footer">
-                    <span>Discover & test</span>
+                    <span>View audio</span>
                     <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
                 </div>
             </div>
@@ -98,34 +82,34 @@
                 </div>
             </div>
 
-            <!-- Home Assistant -->
-            <div class="wizard-card" data-id="hass" data-cat="cloud" data-keywords="home assistant hass hassio iot smart home camera">
+            <!-- Custom Stream -->
+            <div class="wizard-card" data-id="stream" data-cat="camera" data-keywords="custom rtsp rtmp webrtc http hls url temporary mjpeg mp4 stream manual">
                 <div class="wizard-card-top">
                     <div class="wizard-card-icon">
-                        <svg viewBox="0 0 24 24"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg>
+                        <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
                     </div>
-                    <span class="wizard-card-badge badge-blue">Integration</span>
+                    <span class="wizard-card-badge badge-blue">Quick Add</span>
                 </div>
-                <div class="wizard-card-title">Home Assistant</div>
-                <div class="wizard-card-desc">Import and stream cameras configured in your Home Assistant instance.</div>
+                <div class="wizard-card-title">Custom Stream</div>
+                <div class="wizard-card-desc">Add any RTSP, RTMP, HTTP, WebRTC, or file URL directly as a live stream.</div>
                 <div class="wizard-card-footer">
-                    <span>View entities</span>
+                    <span>Configure stream</span>
                     <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
                 </div>
             </div>
 
-            <!-- Ring -->
-            <div class="wizard-card" data-id="ring" data-cat="cloud" data-keywords="ring doorbell camera floodlight amazon security 2fa">
+            <!-- DVRIP (Xiongmai) -->
+            <div class="wizard-card" data-id="dvrip" data-cat="camera" data-keywords="dvrip xiongmai xm dvr nvr ip camera lan discovery">
                 <div class="wizard-card-top">
                     <div class="wizard-card-icon">
-                        <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                        <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M2 4v16h20V4H2zm4 4h4v4H6V8zm0 6h4v2H6v-2zm6-6h6v2h-6V8zm0 4h6v2h-6v-2zm0 4h6v2h-6v-2z"/></svg>
                     </div>
-                    <span class="wizard-card-badge">Cloud</span>
+                    <span class="wizard-card-badge">Auto-Discover</span>
                 </div>
-                <div class="wizard-card-title">Ring</div>
-                <div class="wizard-card-desc">Connect Ring Video Doorbells, Stick Up Cams, and Floodlights via credentials or token.</div>
+                <div class="wizard-card-title">DVRIP (Xiongmai)</div>
+                <div class="wizard-card-desc">Discover Xiongmai/XM-based cameras and DVRs on your local network.</div>
                 <div class="wizard-card-footer">
-                    <span>Authenticate</span>
+                    <span>Discover DVRIP</span>
                     <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
                 </div>
             </div>
@@ -146,48 +130,80 @@
                 </div>
             </div>
 
-            <!-- Wyze -->
-            <div class="wizard-card" data-id="wyze" data-cat="cloud" data-keywords="wyze cam v2 v3 pan outdoor api key smart camera">
+            <!-- GoPro -->
+            <div class="wizard-card" data-id="gopro" data-cat="camera" data-keywords="gopro action cam hero camera wifi stream">
                 <div class="wizard-card-top">
                     <div class="wizard-card-icon">
-                        <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>
+                        <svg viewBox="0 0 24 24"><path d="M4 4h10v16H4V4zm12 4h4v8h-4V8z"/></svg>
                     </div>
-                    <span class="wizard-card-badge">Cloud</span>
+                    <span class="wizard-card-badge">Action Cam</span>
                 </div>
-                <div class="wizard-card-title">Wyze</div>
-                <div class="wizard-card-desc">Access Wyze Cam v2, v3, Pan, and battery cameras with official Wyze API keys.</div>
+                <div class="wizard-card-title">GoPro Camera</div>
+                <div class="wizard-card-desc">Discover connected GoPro Hero action cameras and stream live video feeds.</div>
                 <div class="wizard-card-footer">
-                    <span>Login & discover</span>
+                    <span>Detect GoPro</span>
                     <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
                 </div>
             </div>
 
-            <!-- Tuya / Smart Life -->
-            <div class="wizard-card" data-id="tuya" data-cat="cloud" data-keywords="tuya smart life nedis iot cloud smart camera">
+            <!-- FFmpeg Hardware Acceleration -->
+            <div class="wizard-card" data-id="hardware" data-cat="hardware" data-keywords="hardware acceleration gpu nvenc vaapi qsv videotoolbox codecs cuda">
                 <div class="wizard-card-top">
                     <div class="wizard-card-icon">
-                        <svg viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
+                        <svg viewBox="0 0 24 24"><path d="M6 2v4H2v2h4v4H2v2h4v4H2v2h4v4h2v-4h4v4h2v-4h4v4h2v-4h4v-2h-4v-4h4v-2h-4V8h4V6h-4V2h-2v4h-4V2h-2v4H8V2H6zm2 6h8v8H8V8z"/></svg>
                     </div>
-                    <span class="wizard-card-badge">Cloud</span>
+                    <span class="wizard-card-badge badge-purple">GPU</span>
                 </div>
-                <div class="wizard-card-title">Tuya / Smart Life</div>
-                <div class="wizard-card-desc">Import and stream smart cameras from Tuya, Smart Life, and Nedis ecosystems.</div>
+                <div class="wizard-card-title">Hardware Acceleration</div>
+                <div class="wizard-card-desc">Check GPU hardware encoders/decoders (Nvidia NVENC, Intel QSV, VAAPI).</div>
                 <div class="wizard-card-footer">
-                    <span>Select region</span>
+                    <span>Inspect GPU</span>
                     <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
                 </div>
             </div>
 
-            <!-- Xiaomi Mi Home -->
-            <div class="wizard-card" data-id="xiaomi" data-cat="cloud" data-keywords="xiaomi mi home mijia imilab camera captcha 2fa">
+            <!-- Home Assistant -->
+            <div class="wizard-card" data-id="hass" data-cat="cloud" data-keywords="home assistant hass hassio iot smart home camera">
                 <div class="wizard-card-top">
                     <div class="wizard-card-icon">
-                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14h-2v-6h2v6zm0-8h-2V6h2v2zm4 8h-2v-4h2v4zm0-6h-2V6h2v2z"/></svg>
+                        <svg viewBox="0 0 24 24"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge badge-blue">Integration</span>
+                </div>
+                <div class="wizard-card-title">Home Assistant</div>
+                <div class="wizard-card-desc">Import and stream cameras configured in your Home Assistant instance.</div>
+                <div class="wizard-card-footer">
+                    <span>View entities</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+
+            <!-- ONVIF -->
+            <div class="wizard-card" data-id="onvif" data-cat="camera" data-keywords="onvif ip camera security cctv discover profile test rtsp">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge badge-green">Auto-Discover</span>
+                </div>
+                <div class="wizard-card-title">ONVIF Cameras</div>
+                <div class="wizard-card-desc">Automatically discover ONVIF IP cameras on the local network and test stream URLs.</div>
+                <div class="wizard-card-footer">
+                    <span>Discover & test</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+
+            <!-- Ring -->
+            <div class="wizard-card" data-id="ring" data-cat="cloud" data-keywords="ring doorbell camera floodlight amazon security 2fa">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
                     </div>
                     <span class="wizard-card-badge">Cloud</span>
                 </div>
-                <div class="wizard-card-title">Xiaomi Mi Home</div>
-                <div class="wizard-card-desc">Connect Mi Home cameras with multi-region support and captcha authentication.</div>
+                <div class="wizard-card-title">Ring</div>
+                <div class="wizard-card-desc">Connect Ring Video Doorbells, Stick Up Cams, and Floodlights via credentials or token.</div>
                 <div class="wizard-card-footer">
                     <span>Authenticate</span>
                     <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
@@ -210,6 +226,22 @@
                 </div>
             </div>
 
+            <!-- Tuya / Smart Life -->
+            <div class="wizard-card" data-id="tuya" data-cat="cloud" data-keywords="tuya smart life nedis iot cloud smart camera">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">Cloud</span>
+                </div>
+                <div class="wizard-card-title">Tuya / Smart Life</div>
+                <div class="wizard-card-desc">Import and stream smart cameras from Tuya, Smart Life, and Nedis ecosystems.</div>
+                <div class="wizard-card-footer">
+                    <span>Select region</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+
             <!-- FFmpeg USB Devices -->
             <div class="wizard-card" data-id="devices" data-cat="hardware" data-keywords="usb webcam capture card hdmi directshow dshow vfw hardware local">
                 <div class="wizard-card-top">
@@ -222,54 +254,6 @@
                 <div class="wizard-card-desc">Enumerate local USB webcams, DirectShow devices, and HDMI capture cards.</div>
                 <div class="wizard-card-footer">
                     <span>Scan devices</span>
-                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
-                </div>
-            </div>
-
-            <!-- FFmpeg Hardware Acceleration -->
-            <div class="wizard-card" data-id="hardware" data-cat="hardware" data-keywords="hardware acceleration gpu nvenc vaapi qsv videotoolbox codecs cuda">
-                <div class="wizard-card-top">
-                    <div class="wizard-card-icon">
-                        <svg viewBox="0 0 24 24"><path d="M6 2v4H2v2h4v4H2v2h4v4H2v2h4v4h2v-4h4v4h2v-4h4v4h2v-4h4v-2h-4v-4h4v-2h-4V8h4V6h-4V2h-2v4h-4V2h-2v4H8V2H6zm2 6h8v8H8V8z"/></svg>
-                    </div>
-                    <span class="wizard-card-badge badge-purple">GPU</span>
-                </div>
-                <div class="wizard-card-title">Hardware Acceleration</div>
-                <div class="wizard-card-desc">Check GPU hardware encoders/decoders (Nvidia NVENC, Intel QSV, VAAPI).</div>
-                <div class="wizard-card-footer">
-                    <span>Inspect GPU</span>
-                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
-                </div>
-            </div>
-
-            <!-- DVRIP (Xiongmai) -->
-            <div class="wizard-card" data-id="dvrip" data-cat="camera" data-keywords="dvrip xiongmai xm dvr nvr ip camera lan discovery">
-                <div class="wizard-card-top">
-                    <div class="wizard-card-icon">
-                        <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M2 4v16h20V4H2zm4 4h4v4H6V8zm0 6h4v2H6v-2zm6-6h6v2h-6V8zm0 4h6v2h-6v-2zm0 4h6v2h-6v-2z"/></svg>
-                    </div>
-                    <span class="wizard-card-badge">Auto-Discover</span>
-                </div>
-                <div class="wizard-card-title">DVRIP (Xiongmai)</div>
-                <div class="wizard-card-desc">Discover Xiongmai/XM-based cameras and DVRs on your local network.</div>
-                <div class="wizard-card-footer">
-                    <span>Discover DVRIP</span>
-                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
-                </div>
-            </div>
-
-            <!-- GoPro -->
-            <div class="wizard-card" data-id="gopro" data-cat="camera" data-keywords="gopro action cam hero camera wifi stream">
-                <div class="wizard-card-top">
-                    <div class="wizard-card-icon">
-                        <svg viewBox="0 0 24 24"><path d="M4 4h10v16H4V4zm12 4h4v8h-4V8z"/></svg>
-                    </div>
-                    <span class="wizard-card-badge">Action Cam</span>
-                </div>
-                <div class="wizard-card-title">GoPro Camera</div>
-                <div class="wizard-card-desc">Discover connected GoPro Hero action cameras and stream live video feeds.</div>
-                <div class="wizard-card-footer">
-                    <span>Detect GoPro</span>
                     <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
                 </div>
             </div>
@@ -290,22 +274,6 @@
                 </div>
             </div>
 
-            <!-- ALSA (Linux audio) -->
-            <div class="wizard-card" data-id="alsa" data-cat="hardware" data-keywords="alsa linux audio soundcard microphone capture sound input">
-                <div class="wizard-card-top">
-                    <div class="wizard-card-icon">
-                        <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
-                    </div>
-                    <span class="wizard-card-badge">Linux</span>
-                </div>
-                <div class="wizard-card-title">ALSA Audio</div>
-                <div class="wizard-card-desc">Detect Linux Advanced Linux Sound Architecture soundcards and microphone inputs.</div>
-                <div class="wizard-card-footer">
-                    <span>View audio</span>
-                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
-                </div>
-            </div>
-
             <!-- WebTorrent -->
             <div class="wizard-card" data-id="webtorrent" data-cat="hardware" data-keywords="webtorrent p2p torrent stream peer sharing network">
                 <div class="wizard-card-top">
@@ -318,6 +286,38 @@
                 <div class="wizard-card-desc">Inspect active WebTorrent peer-to-peer live stream shares and seeds.</div>
                 <div class="wizard-card-footer">
                     <span>View shares</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+
+            <!-- Wyze -->
+            <div class="wizard-card" data-id="wyze" data-cat="cloud" data-keywords="wyze cam v2 v3 pan outdoor api key smart camera">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">Cloud</span>
+                </div>
+                <div class="wizard-card-title">Wyze</div>
+                <div class="wizard-card-desc">Access Wyze Cam v2, v3, Pan, and battery cameras with official Wyze API keys.</div>
+                <div class="wizard-card-footer">
+                    <span>Login & discover</span>
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+
+            <!-- Xiaomi Mi Home -->
+            <div class="wizard-card" data-id="xiaomi" data-cat="cloud" data-keywords="xiaomi mi home mijia imilab camera captcha 2fa">
+                <div class="wizard-card-top">
+                    <div class="wizard-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14h-2v-6h2v6zm0-8h-2V6h2v2zm4 8h-2v-4h2v4zm0-6h-2V6h2v2z"/></svg>
+                    </div>
+                    <span class="wizard-card-badge">Cloud</span>
+                </div>
+                <div class="wizard-card-title">Xiaomi Mi Home</div>
+                <div class="wizard-card-desc">Connect Mi Home cameras with multi-region support and captcha authentication.</div>
+                <div class="wizard-card-footer">
+                    <span>Authenticate</span>
                     <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
                 </div>
             </div>

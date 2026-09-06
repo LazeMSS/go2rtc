@@ -106,6 +106,13 @@ function drawTable(table, data) {
         return;
     }
 
+    // Sort entries alphabetically by name, id, or url
+    data.sources.sort((a, b) => {
+        const nameA = (a.name || a.id || a.url || '').toString();
+        const nameB = (b.name || b.id || b.url || '').toString();
+        return nameA.localeCompare(nameB, undefined, {numeric: true, sensitivity: 'base'});
+    });
+
     const cols = ['id', 'name', 'info', 'url', 'location'];
     const th = (row) => cols.reduce((html, k) => k in row ? `${html}<th>${k.toUpperCase()}</th>` : html, '<tr>') + '</tr>';
     const td = (row) => cols.reduce((html, k) => k in row ? `${html}<td>${row[k]}</td>` : html, '<tr>') + '</tr>';
@@ -235,6 +242,20 @@ function triggerPanelAutoFetch(id) {
 // Step navigation event handlers
 stepNav1.addEventListener('click', () => goToStep(1));
 document.getElementById('btn-wizard-back').addEventListener('click', () => goToStep(1));
+
+// Sort integration cards alphabetically by title
+function sortIntegrationGrid() {
+    const grid = document.getElementById('integration-grid');
+    if (!grid) return;
+    const cards = Array.from(grid.querySelectorAll('.wizard-card'));
+    cards.sort((a, b) => {
+        const titleA = a.querySelector('.wizard-card-title')?.textContent?.trim() || '';
+        const titleB = b.querySelector('.wizard-card-title')?.textContent?.trim() || '';
+        return titleA.localeCompare(titleB, undefined, {numeric: true, sensitivity: 'base'});
+    });
+    cards.forEach(card => grid.appendChild(card));
+}
+sortIntegrationGrid();
 
 // Card clicks
 document.getElementById('integration-grid').addEventListener('click', (e) => {
