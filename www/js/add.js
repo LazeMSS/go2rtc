@@ -222,9 +222,26 @@ document.addEventListener('click', async (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
 
-        const streamName = btn.dataset.name;
+        const defaultName = btn.dataset.name;
         const streamUrl = btn.dataset.url;
-        if (!streamName || !streamUrl) return;
+        if (!defaultName || !streamUrl) return;
+
+        const customName = await window.showModal({
+            title: 'Add Stream to Config',
+            message: 'Set a name for this camera stream in your go2rtc configuration:',
+            icon: 'info',
+            confirmText: 'Add to Streams',
+            cancelText: 'Cancel',
+            input: {
+                placeholder: 'Stream name',
+                value: defaultName,
+                required: true
+            }
+        });
+
+        if (!customName || typeof customName !== 'string') return;
+        const streamName = customName.trim();
+        if (!streamName) return;
 
         btn.disabled = true;
         const originalHTML = btn.innerHTML;
@@ -253,7 +270,7 @@ document.addEventListener('click', async (ev) => {
 
             btn.className = 'btn btn-sm btn-stream-added';
             btn.disabled = true;
-            btn.title = 'Already configured in streams';
+            btn.title = `Already configured in streams (as "${escapeHtml(streamName)}")`;
             btn.innerHTML = `<svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px;fill:currentColor;margin-right:4px;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>In Streams`;
 
             window.showToast(`Added "${streamName}" to streams!`, 'success');

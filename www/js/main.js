@@ -267,8 +267,14 @@
                     ? '<svg class="modal-icon icon-warning" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>'
                     : '<svg class="modal-icon icon-info" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>');
 
+            const isInitialDisabled = input && (
+                input.expectedValue
+                    ? (input.value || '').trim() !== input.expectedValue
+                    : (input.required !== false && !(input.value || '').trim())
+            );
+
             const inputHTML = input
-                ? `<input type="text" class="modal-input" placeholder="${escapeToastHTML(input.placeholder || '')}" autocomplete="off" spellcheck="false" />`
+                ? `<input type="text" class="modal-input" value="${escapeToastHTML(input.value || '')}" placeholder="${escapeToastHTML(input.placeholder || '')}" autocomplete="off" spellcheck="false" />`
                 : '';
 
             modalBackdrop.innerHTML = `
@@ -288,7 +294,7 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary btn-sm btn-modal-cancel">${escapeToastHTML(cancelText)}</button>
-                        <button type="button" class="btn ${isDanger ? 'btn-danger' : 'btn-primary'} btn-sm btn-modal-confirm" ${input && input.expectedValue ? 'disabled' : ''}>${escapeToastHTML(confirmText)}</button>
+                        <button type="button" class="btn ${isDanger ? 'btn-danger' : 'btn-primary'} btn-sm btn-modal-confirm" ${isInitialDisabled ? 'disabled' : ''}>${escapeToastHTML(confirmText)}</button>
                     </div>
                 </div>
             `;
@@ -308,9 +314,13 @@
                 resolve(value);
             };
 
-            if (input && input.expectedValue) {
+            if (input) {
                 inputEl.addEventListener('input', () => {
-                    confirmBtn.disabled = (inputEl.value.trim() !== input.expectedValue);
+                    if (input.expectedValue) {
+                        confirmBtn.disabled = (inputEl.value.trim() !== input.expectedValue);
+                    } else if (input.required !== false) {
+                        confirmBtn.disabled = !inputEl.value.trim();
+                    }
                 });
             }
 
@@ -339,7 +349,10 @@
             document.addEventListener('keydown', onKeydown);
 
             if (inputEl) {
-                setTimeout(() => inputEl.focus(), 50);
+                setTimeout(() => {
+                    inputEl.focus();
+                    inputEl.select();
+                }, 50);
             } else {
                 setTimeout(() => confirmBtn.focus(), 50);
             }
