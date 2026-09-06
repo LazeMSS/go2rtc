@@ -107,3 +107,26 @@ func TestPatch(t *testing.T) {
 		})
 	}
 }
+
+func TestSectionKeys(t *testing.T) {
+	src := `
+log:
+  level: trace
+streams:
+  charlie: rtsp://camera_c
+  alpha: rtsp://camera_a
+  bravo: rtsp://camera_b
+  delta: rtsp://camera_d
+homekit:
+  charlie:
+    name: Charlie Cam
+`
+	keys := SectionKeys([]byte(src), "streams")
+	require.Equal(t, []string{"charlie", "alpha", "bravo", "delta"}, keys)
+
+	// Missing section returns nil
+	require.Nil(t, SectionKeys([]byte(src), "nonexistent"))
+
+	// Empty input returns nil
+	require.Nil(t, SectionKeys(nil, "streams"))
+}

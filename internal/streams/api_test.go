@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/AlexxIT/go2rtc/pkg/core"
@@ -63,4 +64,47 @@ func TestApiSchemesNoDuplicates(t *testing.T) {
 
 	// Should only appear once
 	require.Equal(t, 1, count, "scheme 'duplicate' should appear exactly once")
+}
+
+func TestStreamsOrder(t *testing.T) {
+	streamsMu.Lock()
+	// Clear any existing test streams
+	streams = map[string]*Stream{}
+	streamsOrder = nil
+	streamsMu.Unlock()
+
+	// Add in non-alphabetical order: zulu, alpha, mike
+	streamsMu.Lock()
+	streams["zulu"] = NewStream(nil)
+	addStreamOrder("zulu")
+	streams["alpha"] = NewStream(nil)
+	addStreamOrder("alpha")
+	streams["mike"] = NewStream(nil)
+	addStreamOrder("mike")
+	streamsMu.Unlock()
+
+	require.Equal(t, []string{"zulu", "alpha", "mike"}, GetAllNames())
+
+	req := httptest.NewRequest("GET", "/api/streams", nil)
+	w := httptest.NewRecorder()
+	apiStreams(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+
+	// Verify order in JSON output
+	posZulu := strings.Index(body, `"zulu"`)
+	posAlpha := strings.Index(body, `"alpha"`)
+	posMike := strings.Index(body, `"mike"`)
+
+	require.Greater(t, posAlpha, posZulu, "alpha should appear after zulu in JSON")
+	require.Greater(t, posMike, posAlpha, "mike should appear after alpha in JSON")
+
+	// Test Delete removes from order
+	Delete("alpha")
+	require.Equal(t, []string{"zulu", "mike"}, GetAllNames())
+
+	// Cleanup
+	Delete("zulu")
+	Delete("mike")
 }

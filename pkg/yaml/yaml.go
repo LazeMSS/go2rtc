@@ -37,6 +37,30 @@ func Patch(in []byte, path []string, value any) ([]byte, error) {
 	return out, nil
 }
 
+// SectionKeys returns the map keys for a top-level section in their original YAML order.
+func SectionKeys(in []byte, section string) []string {
+	var root yaml.Node
+	if err := yaml.Unmarshal(in, &root); err != nil || len(root.Content) == 0 {
+		return nil
+	}
+
+	if root.Content[0].Kind != yaml.MappingNode {
+		return nil
+	}
+
+	_, pVal := findNode(root.Content[0].Content, []string{section})
+	if pVal == nil || pVal.Kind != yaml.MappingNode {
+		return nil
+	}
+
+	keys := make([]string, 0, len(pVal.Content)/2)
+	for i := 0; i < len(pVal.Content); i += 2 {
+		keys = append(keys, pVal.Content[i].Value)
+	}
+
+	return keys
+}
+
 func patch(in []byte, path []string, value any) ([]byte, error) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(in, &root); err != nil {

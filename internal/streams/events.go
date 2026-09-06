@@ -1,6 +1,7 @@
 package streams
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -52,9 +53,55 @@ func removeListener(ch chan struct{}) {
 
 func getStreamsJSON() []byte {
 	streamsMu.Lock()
-	data, _ := json.Marshal(streams)
-	streamsMu.Unlock()
-	return data
+	defer streamsMu.Unlock()
+
+	var b bytes.Buffer
+	b.WriteByte('{')
+	first := true
+	for _, name := range streamsOrder {
+		stream, ok := streams[name]
+		if !ok {
+			continue
+		}
+		data, err := json.Marshal(stream)
+		if err != nil {
+			continue
+		}
+		if !first {
+			b.WriteByte(',')
+		}
+		first = false
+
+		key, _ := json.Marshal(name)
+		b.Write(key)
+		b.WriteByte(':')
+		b.Write(data)
+	}
+	for name, stream := range streams {
+		found := false
+		for _, n := range streamsOrder {
+			if n == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			data, err := json.Marshal(stream)
+			if err != nil {
+				continue
+			}
+			if !first {
+				b.WriteByte(',')
+			}
+			first = false
+			key, _ := json.Marshal(name)
+			b.Write(key)
+			b.WriteByte(':')
+			b.Write(data)
+		}
+	}
+	b.WriteByte('}')
+	return b.Bytes()
 }
 
 func apiEvents(w http.ResponseWriter, r *http.Request) {

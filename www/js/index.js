@@ -15,7 +15,88 @@ const metricActive = document.getElementById('metric-active');
 const metricSelected = document.getElementById('metric-selected');
 const filterLiveCount = document.getElementById('filter-live-count');
 
+const thStreamName = document.getElementById('th-stream-name');
+const sortIndicator = document.getElementById('sort-indicator');
+const sortBadge = document.getElementById('sort-badge');
+
 let currentStatusFilter = 'all';
+let currentSort = 'config'; // 'config' | 'asc' | 'desc'
+let configOrder = [];
+
+function updateSortIndicator() {
+    if (!thStreamName || !sortIndicator) return;
+
+    thStreamName.classList.remove('sort-asc', 'sort-desc', 'sort-config');
+
+    if (currentSort === 'asc') {
+        thStreamName.classList.add('sort-asc');
+        thStreamName.title = 'Sorted A to Z (Click to sort Z to A)';
+        sortIndicator.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg>';
+        if (sortBadge) {
+            sortBadge.innerText = 'A-Z';
+            sortBadge.classList.remove('hidden');
+        }
+    } else if (currentSort === 'desc') {
+        thStreamName.classList.add('sort-desc');
+        thStreamName.title = 'Sorted Z to A (Click to reset to Config Order)';
+        sortIndicator.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>';
+        if (sortBadge) {
+            sortBadge.innerText = 'Z-A';
+            sortBadge.classList.remove('hidden');
+        }
+    } else {
+        thStreamName.classList.add('sort-config');
+        thStreamName.title = 'Sorted by Config YAML (Click to sort A to Z)';
+        sortIndicator.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 5.83L15.17 9l1.41-1.41L12 3 7.41 7.59 8.83 9 12 5.83zm0 12.34L8.83 15l-1.41 1.41L12 21l4.59-4.59L15.17 15 12 18.17z"/></svg>';
+        if (sortBadge) {
+            sortBadge.innerText = 'Config';
+            sortBadge.classList.remove('hidden');
+        }
+    }
+}
+
+function applySort() {
+    const rows = Array.from(tbody.querySelectorAll('tr[data-id]'));
+    if (rows.length === 0) {
+        updateSortIndicator();
+        return;
+    }
+
+    rows.sort((a, b) => {
+        const nameA = a.dataset.id || '';
+        const nameB = b.dataset.id || '';
+
+        if (currentSort === 'asc') {
+            return nameA.localeCompare(nameB, undefined, {numeric: true, sensitivity: 'base'});
+        } else if (currentSort === 'desc') {
+            return nameB.localeCompare(nameA, undefined, {numeric: true, sensitivity: 'base'});
+        } else {
+            const idxA = configOrder.indexOf(nameA);
+            const idxB = configOrder.indexOf(nameB);
+            const posA = idxA >= 0 ? idxA : 999999;
+            const posB = idxB >= 0 ? idxB : 999999;
+            return posA - posB;
+        }
+    });
+
+    rows.forEach(tr => tbody.appendChild(tr));
+    updateSortIndicator();
+}
+
+if (thStreamName) {
+    thStreamName.addEventListener('click', () => {
+        if (currentSort === 'config') {
+            currentSort = 'asc';
+        } else if (currentSort === 'asc') {
+            currentSort = 'desc';
+        } else {
+            currentSort = 'config';
+        }
+        applySort();
+        applyFilter();
+    });
+}
+
 
 // Status filter buttons (All / Live / Idle)
 document.querySelectorAll('#status-filters .filter-btn').forEach(btn => {
@@ -205,7 +286,17 @@ function updateStreamsTable(data) {
 
     metricTotal.innerText = streamEntries.length;
 
+    // Track stream keys in original arrival / config order
+    for (const key of Object.keys(data)) {
+        const name = key.replace(/[<">]/g, '');
+        if (!configOrder.includes(name)) {
+            configOrder.push(name);
+        }
+    }
+    configOrder = configOrder.filter(name => Object.prototype.hasOwnProperty.call(data, name));
+
     for (const [key, value] of streamEntries) {
+
         const name = key.replace(/[<">]/g, ''); // sanitize
         fetchedIds.push(name);
 
@@ -291,6 +382,7 @@ function updateStreamsTable(data) {
         }
     });
 
+    applySort();
     applyFilter();
 }
 
@@ -369,6 +461,7 @@ function connectEvents() {
 }
 
 // Initial load & real-time connection
+updateSortIndicator();
 reload();
 connectEvents();
 

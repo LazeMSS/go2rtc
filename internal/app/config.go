@@ -19,6 +19,10 @@ func LoadConfig(v any) {
 	}
 }
 
+func Configs() [][]byte {
+	return configs
+}
+
 var configMu sync.Mutex
 
 func PatchConfig(path []string, value any) error {

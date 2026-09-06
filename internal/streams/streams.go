@@ -9,6 +9,7 @@ import (
 	"github.com/AlexxIT/go2rtc/internal/api"
 	"github.com/AlexxIT/go2rtc/internal/api/ws"
 	"github.com/AlexxIT/go2rtc/internal/app"
+	"github.com/AlexxIT/go2rtc/pkg/yaml"
 	"github.com/rs/zerolog"
 )
 
@@ -23,8 +24,24 @@ func Init() {
 
 	log = app.GetLogger("streams")
 
+	// Preserve stream order as defined in config files
+	for _, conf := range app.Configs() {
+		for _, name := range yaml.SectionKeys(conf, "streams") {
+			if item, ok := cfg.Streams[name]; ok {
+				if _, exists := streams[name]; !exists {
+					streams[name] = NewStream(item)
+					addStreamOrder(name)
+				}
+			}
+		}
+	}
+
+	// Add any remaining streams (e.g. from CLI flags, env vars)
 	for name, item := range cfg.Streams {
-		streams[name] = NewStream(item)
+		if _, exists := streams[name]; !exists {
+			streams[name] = NewStream(item)
+			addStreamOrder(name)
+		}
 	}
 
 	api.HandleFunc("api/streams", apiStreams)
@@ -69,6 +86,7 @@ func New(name string, sources ...string) (*Stream, error) {
 
 	streamsMu.Lock()
 	streams[name] = stream
+	addStreamOrder(name)
 	streamsMu.Unlock()
 
 	notifyChange()
@@ -87,6 +105,7 @@ func Patch(name string, source string) (*Stream, error) {
 			if streams[name] != stream {
 				// link (alias) streams[name] to streams[rtspName]
 				streams[name] = stream
+				addStreamOrder(name)
 				notifyChange()
 			}
 			return stream, nil
@@ -97,6 +116,7 @@ func Patch(name string, source string) (*Stream, error) {
 		if name != source {
 			// link (alias) streams[name] to streams[source]
 			streams[name] = stream
+			addStreamOrder(name)
 			notifyChange()
 		}
 		return stream, nil
@@ -121,6 +141,7 @@ func Patch(name string, source string) (*Stream, error) {
 	// create new stream with this name
 	stream := NewStream(source)
 	streams[name] = stream
+	addStreamOrder(name)
 	notifyChange()
 	return stream, nil
 }
@@ -151,7 +172,26 @@ var log zerolog.Logger
 // streams map
 
 var streams = map[string]*Stream{}
+var streamsOrder []string
 var streamsMu sync.Mutex
+
+func addStreamOrder(name string) {
+	for _, n := range streamsOrder {
+		if n == name {
+			return
+		}
+	}
+	streamsOrder = append(streamsOrder, name)
+}
+
+func removeStreamOrder(name string) {
+	for i, n := range streamsOrder {
+		if n == name {
+			streamsOrder = append(streamsOrder[:i], streamsOrder[i+1:]...)
+			break
+		}
+	}
+}
 
 func Get(name string) *Stream {
 	streamsMu.Lock()
@@ -163,25 +203,26 @@ func Delete(name string) {
 	streamsMu.Lock()
 	defer streamsMu.Unlock()
 	delete(streams, name)
+	removeStreamOrder(name)
 	notifyChange()
 }
 
 func GetAllNames() []string {
 	streamsMu.Lock()
-	names := make([]string, 0, len(streams))
-	for name := range streams {
-		names = append(names, name)
-	}
-	streamsMu.Unlock()
+	defer streamsMu.Unlock()
+	names := make([]string, len(streamsOrder))
+	copy(names, streamsOrder)
 	return names
 }
 
 func GetAllSources() map[string][]string {
 	streamsMu.Lock()
+	defer streamsMu.Unlock()
 	sources := make(map[string][]string, len(streams))
-	for name, stream := range streams {
-		sources[name] = stream.Sources()
+	for _, name := range streamsOrder {
+		if stream := streams[name]; stream != nil {
+			sources[name] = stream.Sources()
+		}
 	}
-	streamsMu.Unlock()
 	return sources
 }

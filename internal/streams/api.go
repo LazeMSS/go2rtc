@@ -18,7 +18,7 @@ func apiStreams(w http.ResponseWriter, r *http.Request) {
 
 	// without source - return all streams list
 	if src == "" && r.Method != "POST" {
-		api.ResponseJSON(w, streams)
+		api.Response(w, getStreamsJSON(), api.MimeJSON)
 		return
 	}
 
@@ -98,7 +98,10 @@ func apiStreams(w http.ResponseWriter, r *http.Request) {
 		}
 
 	case "DELETE":
+		streamsMu.Lock()
 		delete(streams, src)
+		removeStreamOrder(src)
+		streamsMu.Unlock()
 		notifyChange()
 
 		if err := app.PatchConfig([]string{"streams", src}, nil); err != nil {
@@ -119,9 +122,13 @@ func apiStreamsDOT(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		for _, stream := range streams {
-			dot = AppendDOT(dot, stream)
+		streamsMu.Lock()
+		for _, name := range streamsOrder {
+			if stream := streams[name]; stream != nil {
+				dot = AppendDOT(dot, stream)
+			}
 		}
+		streamsMu.Unlock()
 	}
 	dot = append(dot, '}')
 
