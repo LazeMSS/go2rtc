@@ -141,15 +141,24 @@ func apiAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cfg := map[string]string{
-		"password": password,
-		"api_key":  apiKey,
-		"api_id":   apiID,
+	isDuplicate := false
+	if existing, ok := accounts[email]; ok {
+		if existing.Password == password && existing.APIKey == apiKey && existing.APIID == apiID {
+			isDuplicate = true
+		}
 	}
 
-	if err := app.PatchConfig([]string{"wyze", email}, cfg); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	if !isDuplicate {
+		cfg := map[string]string{
+			"password": password,
+			"api_key":  apiKey,
+			"api_id":   apiID,
+		}
+
+		if err := app.PatchConfig([]string{"wyze", email}, cfg); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	if accounts == nil {

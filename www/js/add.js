@@ -626,6 +626,53 @@ document.getElementById('tuya-credentials-form').addEventListener('submit', asyn
 });
 
 // Arenti
+function prefillArentiAccount(acc) {
+    const form = document.getElementById('arenti-login-form');
+    if (!form || !acc) return;
+
+    if (acc.username) {
+        const u = form.querySelector('[name="username"]');
+        if (u) u.value = acc.username;
+    }
+    if (acc.country_code) {
+        const c = form.querySelector('[name="country_code"]');
+        if (c) c.value = acc.country_code;
+    }
+    if (acc.region) {
+        const r = form.querySelector('[name="region"]');
+        if (r) r.value = acc.region;
+    }
+    const p = form.querySelector('[name="password"]');
+    if (p) {
+        p.placeholder = '•••••••• (Saved in config)';
+        p.required = false;
+    }
+
+    let banner = document.getElementById('arenti-account-status');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'arenti-account-status';
+        banner.className = 'account-status-banner';
+        form.parentNode.insertBefore(banner, form);
+    }
+    banner.innerHTML = `
+        <div class="account-status-badge">
+            <span class="status-dot"></span>
+            <span>Configured Account: <strong>${escapeHtml(acc.username)}</strong> (${escapeHtml(acc.country_code || 'US')})</span>
+        </div>
+        <button type="button" class="btn btn-sm btn-secondary" id="btn-arenti-edit-toggle">Edit Account</button>
+    `;
+
+    form.classList.add('account-configured-collapsed');
+    const toggleBtn = banner.querySelector('#btn-arenti-edit-toggle');
+    if (toggleBtn) {
+        toggleBtn.onclick = () => {
+            const isCollapsed = form.classList.toggle('account-configured-collapsed');
+            toggleBtn.textContent = isCollapsed ? 'Edit Account' : 'Hide Form';
+        };
+    }
+}
+
 async function arentiReload() {
     try {
         const r = await fetch('api/arenti', {cache: 'no-cache'});
@@ -639,14 +686,36 @@ async function arentiReload() {
                     selectCard.style.display = '';
                     users.innerHTML = data.map(i => `<option value="${i}">${i}</option>`).join('');
                 }
+                const r0 = await fetch('api/arenti?id=' + encodeURIComponent(data[0]), {cache: 'no-cache'});
+                if (r0.ok) {
+                    const d0 = await r0.json();
+                    if (d0.sources) await drawTable(document.getElementById('arenti-table'), d0);
+                    if (d0.account) prefillArentiAccount(d0.account);
+                }
             }
         } else if (data && data.sources) {
             await drawTable(document.getElementById('arenti-table'), data);
+            if (data.account) {
+                prefillArentiAccount(data.account);
+            }
         }
     } catch (e) {
         console.warn('arenti reload error:', e);
     }
 }
+
+document.getElementById('arenti-id')?.addEventListener('change', async (ev) => {
+    const val = ev.target.value;
+    if (!val) return;
+    try {
+        const r = await fetch('api/arenti?id=' + encodeURIComponent(val), {cache: 'no-cache'});
+        if (r.ok) {
+            const d = await r.json();
+            if (d.sources) await drawTable(document.getElementById('arenti-table'), d);
+            if (d.account) prefillArentiAccount(d.account);
+        }
+    } catch (e) {}
+});
 
 document.getElementById('arenti-login-form')?.addEventListener('submit', async ev => {
     ev.preventDefault();
@@ -659,9 +728,17 @@ document.getElementById('arenti-login-form')?.addEventListener('submit', async e
             return;
         }
         const data = await r.json();
-        await drawTable(document.getElementById('arenti-table'), data);
-        window.showToast('Arenti login successful! Discovered cameras.', 'success');
-        arentiReload();
+        if (data && data.sources) {
+            await drawTable(document.getElementById('arenti-table'), data);
+        }
+        if (data && data.account) {
+            prefillArentiAccount(data.account);
+        }
+        if (data && data.is_existing) {
+            window.showToast('Account already in config. Discovered cameras.', 'info');
+        } else {
+            window.showToast('Arenti login successful! Discovered cameras.', 'success');
+        }
     } catch (e) {
         window.showToast('Arenti error: ' + e.message, 'error');
     }
@@ -674,13 +751,60 @@ document.getElementById('arenti-devices-form')?.addEventListener('submit', async
 });
 
 // 10. Wyze
+function prefillWyzeAccount(email) {
+    const form = document.getElementById('wyze-login-form');
+    if (!form || !email) return;
+
+    const emailInput = form.querySelector('[name="email"]');
+    if (emailInput) emailInput.value = email;
+
+    const passInput = form.querySelector('[name="password"]');
+    if (passInput) {
+        passInput.placeholder = '•••••••• (Saved in config)';
+        passInput.required = false;
+    }
+    const apiIdInput = form.querySelector('[name="api_id"]');
+    if (apiIdInput) apiIdInput.required = false;
+    const apiKeyInput = form.querySelector('[name="api_key"]');
+    if (apiKeyInput) apiKeyInput.required = false;
+
+    let banner = document.getElementById('wyze-account-status');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'wyze-account-status';
+        banner.className = 'account-status-banner';
+        form.parentNode.insertBefore(banner, form);
+    }
+    banner.innerHTML = `
+        <div class="account-status-badge">
+            <span class="status-dot"></span>
+            <span>Configured Account: <strong>${escapeHtml(email)}</strong></span>
+        </div>
+        <button type="button" class="btn btn-sm btn-secondary" id="btn-wyze-edit-toggle">Edit Account</button>
+    `;
+
+    form.classList.add('account-configured-collapsed');
+    const toggleBtn = banner.querySelector('#btn-wyze-edit-toggle');
+    if (toggleBtn) {
+        toggleBtn.onclick = () => {
+            const isCollapsed = form.classList.toggle('account-configured-collapsed');
+            toggleBtn.textContent = isCollapsed ? 'Edit Account' : 'Hide Form';
+        };
+    }
+}
+
 async function wyzeReload() {
     try {
         const r = await fetch('api/wyze', {cache: 'no-cache'});
         if (r.ok) {
             const data = await r.json();
             const users = document.getElementById('wyze-id');
-            users.innerHTML = data.map(item => `<option value="${item}">${item}</option>`).join('');
+            if (users && Array.isArray(data)) {
+                users.innerHTML = data.map(item => `<option value="${item}">${item}</option>`).join('');
+                if (data.length > 0) {
+                    prefillWyzeAccount(data[0]);
+                }
+            }
         }
     } catch (e) {}
 }
