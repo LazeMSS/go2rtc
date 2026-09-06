@@ -1076,6 +1076,39 @@ a:hover {
     }
 }
 
+/* Discovery Table 1-Click Stream Actions */
+.table-action-cell {
+    text-align: right !important;
+    white-space: nowrap;
+}
+
+.btn-add-stream {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.btn-stream-added {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0.75;
+    cursor: default !important;
+    background: var(--bg-surface-elevated);
+    border-color: var(--border-color);
+    color: var(--text-muted);
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+table.modern-table tbody tr:has(.btn-add-stream) {
+    cursor: pointer;
+}
+
 /* =========================================================
    Stream Page & Video Frame Components
    ========================================================= */

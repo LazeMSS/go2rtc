@@ -95,6 +95,52 @@ const integrations = {
 };
 
 // =========================================================
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+const knownStreams = new Map(); // streamName -> Set of URLs
+let isKnownStreamsLoaded = false;
+
+async function loadKnownStreams() {
+    try {
+        const r = await fetch('api/streams', { cache: 'no-cache' });
+        if (r.ok) {
+            const data = await r.json();
+            knownStreams.clear();
+            if (data && typeof data === 'object') {
+                for (const [name, s] of Object.entries(data)) {
+                    const urls = (s && s.producers ? s.producers : []).map(p => p.url).filter(Boolean);
+                    knownStreams.set(name, new Set(urls));
+                }
+            }
+            isKnownStreamsLoaded = true;
+        }
+    } catch (e) {
+        console.warn('Failed to load active streams:', e);
+    }
+}
+
+function isStreamAdded(name, url) {
+    if (name && knownStreams.has(name)) return true;
+    if (url) {
+        for (const urls of knownStreams.values()) {
+            if (urls.has(url)) return true;
+        }
+    }
+    return false;
+}
+
+// Initial fetch of active streams
+loadKnownStreams();
+
+// =========================================================
 // Table Renderer
 // =========================================================
 function drawTable(table, data) {
@@ -102,7 +148,7 @@ function drawTable(table, data) {
         table.innerHTML = `
             <tbody>
                 <tr>
-                    <td colspan="5" class="table-empty-cell">
+                    <td colspan="6" class="table-empty-cell">
                         No devices or sources discovered on the network.
                     </td>
                 </tr>
@@ -118,9 +164,47 @@ function drawTable(table, data) {
         return nameA.localeCompare(nameB, undefined, {numeric: true, sensitivity: 'base'});
     });
 
+    const hasUrls = data.sources.some(s => s && s.url);
     const cols = ['id', 'name', 'info', 'url', 'location'];
-    const th = (row) => cols.reduce((html, k) => k in row ? `${html}<th>${k.toUpperCase()}</th>` : html, '<tr>') + '</tr>';
-    const td = (row) => cols.reduce((html, k) => k in row ? `${html}<td>${row[k]}</td>` : html, '<tr>') + '</tr>';
+
+    const th = (row) => {
+        let html = cols.reduce((acc, k) => k in row ? `${acc}<th>${k.toUpperCase()}</th>` : acc, '<tr>');
+        if (hasUrls) {
+            html += '<th class="table-action-cell" style="width: 150px;">ACTION</th>';
+        }
+        return html + '</tr>';
+    };
+
+    const td = (row) => {
+        let html = cols.reduce((acc, k) => {
+            if (!(k in row)) return acc;
+            const val = row[k] != null ? row[k] : '';
+            return `${acc}<td>${escapeHtml(String(val))}</td>`;
+        }, '<tr>');
+
+        if (hasUrls) {
+            if (row.url) {
+                const streamName = row.name || row.id || row.url;
+                const added = isStreamAdded(row.name || row.id, row.url);
+                if (added) {
+                    html += `<td class="table-action-cell">
+                        <button type="button" class="btn btn-sm btn-stream-added" disabled title="Already configured in streams">
+                            <svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px;fill:currentColor;margin-right:4px;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>In Streams
+                        </button>
+                    </td>`;
+                } else {
+                    html += `<td class="table-action-cell">
+                        <button type="button" class="btn btn-sm btn-primary btn-add-stream" data-name="${escapeHtml(streamName)}" data-url="${escapeHtml(row.url)}" title="Add '${escapeHtml(streamName)}' to streams config">
+                            <svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px;fill:currentColor;margin-right:3px;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>+ Add to Streams
+                        </button>
+                    </td>`;
+                }
+            } else {
+                html += '<td class="table-action-cell"></td>';
+            }
+        }
+        return html + '</tr>';
+    };
 
     const thead = th(data.sources[0]);
     const tbody = data.sources.reduce((html, source) => `${html}${td(source)}`, '');
@@ -128,12 +212,71 @@ function drawTable(table, data) {
     table.innerHTML = `<thead>${thead}</thead><tbody>${tbody}</tbody>`;
 }
 
+// Global 1-click Stream Adding Event Delegation
+document.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('.btn-add-stream');
+    if (btn) {
+        if (btn.disabled) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+
+        const streamName = btn.dataset.name;
+        const streamUrl = btn.dataset.url;
+        if (!streamName || !streamUrl) return;
+
+        btn.disabled = true;
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = `<span class="table-loading-spinner" style="width:12px;height:12px;display:inline-block;vertical-align:-2px;margin-right:4px;"></span>Adding...`;
+
+        try {
+            const url = new URL('api/streams', location.href);
+            url.searchParams.set('name', streamName);
+            url.searchParams.set('src', streamUrl);
+            const r = await fetch(url, { method: 'PUT' });
+
+            if (!r.ok) {
+                const errText = await r.text();
+                throw new Error(errText || 'Failed to add stream');
+            }
+
+            if (!knownStreams.has(streamName)) {
+                knownStreams.set(streamName, new Set());
+            }
+            knownStreams.get(streamName).add(streamUrl);
+
+            btn.className = 'btn btn-sm btn-stream-added';
+            btn.disabled = true;
+            btn.title = 'Already configured in streams';
+            btn.innerHTML = `<svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px;fill:currentColor;margin-right:4px;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>In Streams`;
+
+            window.showToast(`Added "${streamName}" to streams!`, 'success');
+        } catch (e) {
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+            window.showToast(`Error adding stream: ${e.message}`, 'error');
+        }
+        return;
+    }
+
+    // Optional click-to-add row: if user clicks on an un-added table row
+    if (window.getSelection && window.getSelection().toString()) return;
+    if (ev.target.closest('button, a, input, select, textarea')) return;
+
+    const row = ev.target.closest('tr');
+    if (!row) return;
+
+    const addBtn = row.querySelector('.btn-add-stream');
+    if (addBtn && !addBtn.disabled) {
+        addBtn.click();
+    }
+});
+
 async function getSources(tableID, url) {
     const table = document.getElementById(tableID);
     table.innerHTML = `
         <tbody>
             <tr>
-                <td colspan="5" class="table-loading">
+                <td colspan="6" class="table-loading">
                     <div class="table-loading-spinner"></div>
                     <span>Scanning for available devices...</span>
                 </td>
@@ -142,15 +285,18 @@ async function getSources(tableID, url) {
     `;
 
     try {
+        if (!isKnownStreamsLoaded) {
+            await loadKnownStreams();
+        }
         const r = typeof url === 'string' ? await fetch(url, {cache: 'no-cache'}) : url;
         if (!r.ok) {
             const errText = await r.text();
-            table.innerHTML = `<tbody><tr><td colspan="5" class="table-error-cell">Error: ${errText || 'Failed to fetch sources'}</td></tr></tbody>`;
+            table.innerHTML = `<tbody><tr><td colspan="6" class="table-error-cell">Error: ${errText || 'Failed to fetch sources'}</td></tr></tbody>`;
             return;
         }
         drawTable(table, await r.json());
     } catch (e) {
-        table.innerHTML = `<tbody><tr><td colspan="5" class="table-error-cell">Network error: ${e.message}</td></tr></tbody>`;
+        table.innerHTML = `<tbody><tr><td colspan="6" class="table-error-cell">Network error: ${e.message}</td></tr></tbody>`;
     }
 }
 
@@ -489,9 +635,9 @@ async function arentiReload() {
                     selectCard.style.display = '';
                     users.innerHTML = data.map(i => `<option value="${i}">${i}</option>`).join('');
                 }
-            } else {
-                drawTable(document.getElementById('arenti-table'), data);
             }
+        } else if (data && data.sources) {
+            drawTable(document.getElementById('arenti-table'), data);
         }
     } catch (e) {
         console.warn('arenti reload error:', e);
