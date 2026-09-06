@@ -198,9 +198,7 @@ async function drawTable(table, data) {
                     </td>`;
                 } else {
                     html += `<td class="table-action-cell">
-                        <button type="button" class="btn btn-sm btn-primary btn-add-stream" data-name="${escapeHtml(streamName)}" data-url="${escapeHtml(row.url)}" title="Add '${escapeHtml(streamName)}' to streams config">
-                            <svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px;fill:currentColor;margin-right:3px;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>+ Add to Streams
-                        </button>
+                        <button type="button" class="btn btn-sm btn-primary btn-add-stream" data-name="${escapeHtml(streamName)}" data-url="${escapeHtml(row.url)}" title="Add '${escapeHtml(streamName)}' to streams config">+ Add to Streams</button>
                     </td>`;
                 }
             } else {
