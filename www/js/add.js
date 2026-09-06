@@ -132,8 +132,17 @@ function isStreamAdded(name, url) {
         let decoded = url;
         try { encoded = encodeURI(url); } catch (e) {}
         try { decoded = decodeURI(url); } catch (e) {}
-        for (const urls of knownStreams.values()) {
+        for (const [sName, urls] of knownStreams.entries()) {
             if (urls.has(url) || urls.has(encoded) || urls.has(decoded)) return true;
+            if (name) {
+                const nameLower = name.toLowerCase().trim();
+                for (const u of urls) {
+                    try {
+                        const uDecoded = decodeURIComponent(u).toLowerCase();
+                        if (uDecoded.includes(nameLower)) return true;
+                    } catch (e) {}
+                }
+            }
         }
     }
     return false;
@@ -255,6 +264,9 @@ document.addEventListener('click', async (ev) => {
             const url = new URL('api/streams', location.href);
             url.searchParams.set('name', streamName);
             url.searchParams.set('src', cleanUrl);
+            if (defaultName) {
+                url.searchParams.set('comment', defaultName);
+            }
             const r = await fetch(url, { method: 'PUT' });
 
             if (!r.ok) {
