@@ -119,13 +119,41 @@ function getSelectedModesParam() {
     return m ? `&mode=${m}` : '';
 }
 
+// Dynamic update of mode active badge in summary
+function updateModesBadge() {
+    const badge = document.getElementById('modes-badge');
+    if (!badge) return;
+    const modeInputs = Array.from(document.querySelectorAll('.modes-group input[type="checkbox"]'));
+    const checked = modeInputs.filter(i => i.checked);
+    if (checked.length === modeInputs.length) {
+        badge.innerText = `${checked.length} active`;
+        badge.classList.remove('badge-warning');
+    } else if (checked.length === 0) {
+        badge.innerText = 'none';
+        badge.classList.add('badge-warning');
+    } else {
+        badge.innerText = checked.map(i => i.name.toUpperCase()).join(', ');
+        badge.classList.remove('badge-warning');
+    }
+}
+
 // Update chip styling and dynamically update all play links when mode checkboxes toggle
 document.querySelectorAll('.mode-chip input[type="checkbox"]').forEach(input => {
     input.addEventListener('change', () => {
         input.parentElement.classList.toggle('active', input.checked);
+        updateModesBadge();
         updatePlayLinks();
     });
 });
+
+// Initialize modes badge
+updateModesBadge();
+
+// On mobile devices, start with modes selector collapsed to maximize visible space
+if (window.innerWidth <= 768) {
+    const modesDetails = document.getElementById('modes-details');
+    if (modesDetails) modesDetails.removeAttribute('open');
+}
 
 function updatePlayLinks() {
     const param = getSelectedModesParam();
