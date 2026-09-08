@@ -105,6 +105,7 @@ document.querySelectorAll('#status-filters .filter-btn').forEach(btn => {
         btn.classList.add('active');
         currentStatusFilter = btn.dataset.filter;
         applyFilter();
+        updateFiltersBadge();
     });
 });
 
@@ -137,6 +138,36 @@ function updateModesBadge() {
     }
 }
 
+// Dynamic update of filter & search active badge in summary
+function updateFiltersBadge() {
+    const badge = document.getElementById('filters-badge');
+    if (!badge) return;
+    const q = filterInput ? filterInput.value.trim() : '';
+    let statusText = 'All';
+    if (currentStatusFilter === 'live') {
+        const liveCount = filterLiveCount ? filterLiveCount.innerText : '0';
+        statusText = `Live (${liveCount})`;
+    } else if (currentStatusFilter === 'idle') {
+        statusText = 'Idle';
+    }
+
+    if (q) {
+        if (currentStatusFilter === 'all') {
+            badge.innerText = `"${q}"`;
+        } else {
+            badge.innerText = `${statusText} · "${q}"`;
+        }
+        badge.classList.add('badge-active');
+    } else {
+        badge.innerText = statusText;
+        if (currentStatusFilter !== 'all') {
+            badge.classList.add('badge-active');
+        } else {
+            badge.classList.remove('badge-active');
+        }
+    }
+}
+
 // Update chip styling and dynamically update all play links when mode checkboxes toggle
 document.querySelectorAll('.mode-chip input[type="checkbox"]').forEach(input => {
     input.addEventListener('change', () => {
@@ -146,13 +177,16 @@ document.querySelectorAll('.mode-chip input[type="checkbox"]').forEach(input => 
     });
 });
 
-// Initialize modes badge
+// Initialize badges
 updateModesBadge();
+updateFiltersBadge();
 
-// On mobile devices, start with modes selector collapsed to maximize visible space
+// On mobile devices, start with modes and filters selector collapsed to maximize visible space
 if (window.innerWidth <= 768) {
     const modesDetails = document.getElementById('modes-details');
     if (modesDetails) modesDetails.removeAttribute('open');
+    const filtersDetails = document.getElementById('filters-details');
+    if (filtersDetails) filtersDetails.removeAttribute('open');
 }
 
 function updatePlayLinks() {
@@ -255,6 +289,7 @@ function applyFilter() {
         tableEl.classList.remove('hidden');
         tableFooter.classList.remove('hidden');
     }
+    updateFiltersBadge();
 }
 
 // Stream row command delegations
@@ -361,15 +396,19 @@ function updateStreamsTable(data) {
             </span>`;
 
         tr.innerHTML = `
-            <td class="text-center">
+            <td class="text-center col-check">
                 <input type="checkbox" name="${name}" ${isChecked}>
             </td>
-            <td>
+            <td class="col-name">
                 <div class="stream-name-cell">
+                    <span class="status-indicator-inline ${online > 0 ? 'online' : 'idle'}" title="${online > 0 ? `${online} active viewer${online > 1 ? 's' : ''}` : 'Idle'}">
+                        <span class="status-dot-mini"></span>
+                        ${online > 0 ? `<span class="status-count-mini">${online}</span>` : ''}
+                    </span>
                     <a href="stream.html?src=${src}${modeParam}" data-src="${src}" class="stream-name-title" title="Open stream viewer">${name}</a>
                 </div>
             </td>
-            <td>
+            <td class="col-status">
                 <div class="status-group">
                     ${statusBadge}
                     <a href="api/streams?src=${src}&video=all&audio=all&microphone" class="action-pill btn-sm" title="Probe codecs">
@@ -379,7 +418,7 @@ function updateStreamsTable(data) {
                     ${netButton}
                 </div>
             </td>
-            <td class="text-right">
+            <td class="text-right col-actions">
                 <div class="actions-cell actions-cell-right">
                     <a href="stream.html?src=${src}${modeParam}" data-src="${src}" class="action-pill action-stream" title="Live stream">
                         <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -401,6 +440,7 @@ function updateStreamsTable(data) {
     metricActive.innerText = totalConsumers;
     filterLiveCount.innerText = liveCount;
     updateSelectedCount();
+    updateFiltersBadge();
 
     // Remove obsolete rows
     existingIds.forEach(id => {

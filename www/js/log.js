@@ -31,11 +31,22 @@ let fallbackInterval = null;
 const layout = () => {
     if (logWrapper) {
         const top = logWrapper.getBoundingClientRect().top;
-        const h = Math.max(300, window.innerHeight - top - 24);
+        const h = Math.max(200, window.innerHeight - top - 16);
         logWrapper.style.height = `${h}px`;
     }
 };
 window.addEventListener('resize', layout);
+
+const logFilterDetails = document.getElementById('log-filter-details');
+if (logFilterDetails) {
+    logFilterDetails.addEventListener('toggle', () => {
+        layout();
+    });
+    // Start collapsed on mobile to maximize visible log area
+    if (window.innerWidth <= 768) {
+        logFilterDetails.removeAttribute('open');
+    }
+}
 layout();
 
 // Sanitizes input text to prevent XSS
@@ -319,6 +330,29 @@ logSearchClear.addEventListener('click', () => {
     logSearch.focus();
 });
 
+function updateLogFiltersBadge() {
+    const badge = document.getElementById('log-filters-badge');
+    if (!badge) return;
+    const q = logSearch ? logSearch.value.trim() : '';
+    let statusText = activeLevel.charAt(0).toUpperCase() + activeLevel.slice(1);
+
+    if (q) {
+        if (activeLevel === 'all') {
+            badge.innerText = `"${q}"`;
+        } else {
+            badge.innerText = `${statusText} · "${q}"`;
+        }
+        badge.classList.add('badge-active');
+    } else {
+        badge.innerText = statusText;
+        if (activeLevel !== 'all') {
+            badge.classList.add('badge-active');
+        } else {
+            badge.classList.remove('badge-active');
+        }
+    }
+}
+
 function filterTable() {
     for (const tr of logTbody.children) {
         if (tr._entry) {
@@ -327,7 +361,10 @@ function filterTable() {
         }
     }
     updateCountBadges();
+    updateLogFiltersBadge();
 }
+
+updateLogFiltersBadge();
 
 // Fallback polling if SSE is blocked by proxy or fails
 function pollFallback() {
