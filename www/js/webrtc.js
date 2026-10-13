@@ -15,7 +15,6 @@ document.getElementById('nav-mode').textContent = media.replace(/\+/g, ' • ');
 
 const frame = document.getElementById('stream-frame');
 const video = document.getElementById('video');
-const navQualitySwitch = document.getElementById('nav-quality-switch');
 
 if (params.get('src')) {
     frame.src = currentStreamName;
@@ -31,39 +30,17 @@ if (window.StreamQuality && currentStreamName) {
         const pairInfo = window.StreamQuality.getPairInfo(currentStreamName, allStreams);
         if (pairInfo) {
             frame.setQualityPair(pairInfo);
-
-            if (navQualitySwitch) {
-                navQualitySwitch.classList.remove('hidden');
-                const updateNavQuality = (q) => {
-                    navQualitySwitch.querySelectorAll('.quality-btn').forEach(btn => {
-                        btn.classList.toggle('active', btn.dataset.quality === q);
-                    });
-                };
-                updateNavQuality(pairInfo.currentQuality);
-                navQualitySwitch.querySelectorAll('.quality-btn').forEach(btn => {
-                    btn.onclick = (e) => {
-                        e.stopPropagation();
-                        frame.switchQuality(btn.dataset.quality);
-                    };
-                });
-            }
         }
     });
 }
 
 frame.addEventListener('qualitychange', (e) => {
-    const { src, quality } = e.detail;
+    const { src } = e.detail;
     currentStreamName = src;
     titleText = src;
     document.title = `${src} (WebRTC) - go2rtc`;
     document.getElementById('nav-title').textContent = src;
     document.getElementById('btn-back').href = `links.html?src=${encodeURIComponent(src)}`;
-
-    if (navQualitySwitch) {
-        navQualitySwitch.querySelectorAll('.quality-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.quality === quality);
-        });
-    }
 
     const u = new URL(location.href);
     u.searchParams.set('src', src);

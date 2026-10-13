@@ -125,10 +125,17 @@ class CameraFrame extends HTMLElement {
         if (!this._rendered) {
             this._render();
         }
-        if (!this._pairInfo && this.src && window.StreamQuality) {
-            const pair = window.StreamQuality.getPairInfo(this.src);
-            if (pair) {
-                this.setQualityPair(pair);
+        if (this._pairInfo) {
+            this._updateQualitySwitch();
+        } else if (this.src && window.StreamQuality) {
+            if (window.StreamQuality._cachedStreams) {
+                const pair = window.StreamQuality.getPairInfo(this.src);
+                if (pair) this.setQualityPair(pair);
+            } else {
+                window.StreamQuality.fetchStreamsList().then(allStreams => {
+                    const pair = window.StreamQuality.getPairInfo(this.src, allStreams);
+                    if (pair) this.setQualityPair(pair);
+                });
             }
         }
         document.addEventListener('fullscreenchange', this._onFullscreenChange);
@@ -274,6 +281,7 @@ class CameraFrame extends HTMLElement {
 
         this._updateUnmuteButton();
         this._updateTitleAndLinks();
+        this._updateQualitySwitch();
     }
 
     _createVideoStream() {
@@ -410,7 +418,9 @@ class CameraFrame extends HTMLElement {
      */
     setQualityPair(pairInfo) {
         this._pairInfo = pairInfo;
-        this._updateQualitySwitch();
+        if (this._rendered) {
+            this._updateQualitySwitch();
+        }
     }
 
     _updateQualitySwitch() {
@@ -443,6 +453,7 @@ class CameraFrame extends HTMLElement {
         targetQuality = (targetQuality || '').toLowerCase();
         if (this._pairInfo.currentQuality === targetQuality) return;
 
+        const oldSrc = this._src;
         const newSrc = targetQuality === 'hd' ? this._pairInfo.hdStream : this._pairInfo.sdStream;
         this._pairInfo.currentQuality = targetQuality;
         this._pairInfo.currentStream = newSrc;
@@ -451,11 +462,15 @@ class CameraFrame extends HTMLElement {
         this.setAttribute('src', newSrc);
         this.dataset.src = newSrc;
 
+        if (!this._title || this._title === oldSrc || this.getAttribute('title') === oldSrc) {
+            this.title = newSrc;
+        }
+
         if (this._titleEl) {
-            this._titleEl.textContent = newSrc;
+            this._titleEl.textContent = this.title;
         }
         if (this._titleWrap) {
-            this._titleWrap.title = newSrc;
+            this._titleWrap.title = this.title;
         }
 
         this._updateQualitySwitch();

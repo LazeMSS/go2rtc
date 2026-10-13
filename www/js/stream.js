@@ -29,38 +29,16 @@ if (params.get('header') === 'false' || params.get('nav') === 'false' || params.
 // Set page and header titles
 const navTitle = document.getElementById('nav-title');
 const navCount = document.getElementById('nav-count');
-const navQualitySwitch = document.getElementById('nav-quality-switch');
 
 if (streams.length === 1 && streams[0]) {
     navTitle.innerText = streams[0];
     navCount.innerText = '1 Camera';
     document.title = `${streams[0]} - go2rtc`;
-
-    if (window.StreamQuality && allStreams.length > 0) {
-        const pairInfo = window.StreamQuality.getPairInfo(streams[0], allStreams);
-        if (pairInfo && navQualitySwitch) {
-            navQualitySwitch.classList.remove('hidden');
-            const updateNavQuality = (q) => {
-                navQualitySwitch.querySelectorAll('.quality-btn').forEach(btn => {
-                    btn.classList.toggle('active', btn.dataset.quality === q);
-                });
-            };
-            updateNavQuality(pairInfo.currentQuality);
-            navQualitySwitch.querySelectorAll('.quality-btn').forEach(btn => {
-                btn.onclick = (e) => {
-                    e.stopPropagation();
-                    const frame = container.querySelector('camera-frame');
-                    if (frame) frame.switchQuality(btn.dataset.quality);
-                };
-            });
-        }
-    }
 } else if (streams.length > 1) {
     navTitle.innerText = 'Multiview Monitor';
     navCount.innerText = `${streams.length} Cameras • Drag to sort`;
     navCount.title = 'Sortable: Drag cameras or use arrow controls. The URL updates automatically so you can bookmark your layout.';
     document.title = `${streams.join(' / ')} - go2rtc`;
-    if (navQualitySwitch) navQualitySwitch.classList.add('hidden');
 }
 
 // Global fullscreen toggle
@@ -138,28 +116,22 @@ streams.forEach((streamName, i) => {
     if (customWidth) {
         frame.style.flex = `1 0 ${customWidth}`;
     }
+    container.appendChild(frame);
+
     if (window.StreamQuality && allStreams.length > 0) {
         const pair = window.StreamQuality.getPairInfo(streamName, allStreams);
         if (pair) {
             frame.setQualityPair(pair);
         }
     }
-
-    container.appendChild(frame);
 });
 
 // Delegate resolution quality changes from <camera-frame>
 container.addEventListener('qualitychange', (e) => {
-    const { src, quality } = e.detail;
+    const { src } = e.detail;
     if (streams.length === 1) {
         navTitle.innerText = src;
         document.title = `${src} - go2rtc`;
-
-        if (navQualitySwitch) {
-            navQualitySwitch.querySelectorAll('.quality-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.quality === quality);
-            });
-        }
 
         const currentParams = new URLSearchParams(location.search);
         currentParams.set('src', src);

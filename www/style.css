@@ -1920,9 +1920,6 @@ camera-frame,
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
-.nav-quality-switch {
-    margin-left: 8px;
-}
 
 /* Resolution Badge for Stream Table */
 .badge-resolution {
