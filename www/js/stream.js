@@ -1,15 +1,24 @@
 const params = new URLSearchParams(location.search);
 
-// Support multiple streams and multiple modes
-const streams = params.getAll('src');
-const modes = params.getAll('mode');
-if (modes.length === 0) modes.push('');
+// Fetch stream catalog to resolve HD/SD counterpart pairs and configuration order
+const allStreams = window.StreamQuality ? await window.StreamQuality.fetchStreamsList() : [];
 
+// Support multiple streams and multiple modes
+let rawStreams = params.getAll('src');
+let modes = params.getAll('mode');
+
+// "When showing multiple streams at once it should also group sd/hd stream together and only show one and again default being first entry"
+let streams = rawStreams;
+if (window.StreamQuality && allStreams.length > 0 && rawStreams.length > 0) {
+    streams = window.StreamQuality.groupStreams(rawStreams, allStreams);
+}
+
+if (modes.length === 0) modes.push('');
 while (modes.length > streams.length) {
-    streams.push(streams[0]);
+    modes.pop();
 }
 while (streams.length > modes.length) {
-    modes.push(modes[0]);
+    modes.push(modes[0] || '');
 }
 
 // Header visibility option (e.g. for iframes)
@@ -20,15 +29,38 @@ if (params.get('header') === 'false' || params.get('nav') === 'false' || params.
 // Set page and header titles
 const navTitle = document.getElementById('nav-title');
 const navCount = document.getElementById('nav-count');
+const navQualitySwitch = document.getElementById('nav-quality-switch');
+
 if (streams.length === 1 && streams[0]) {
     navTitle.innerText = streams[0];
     navCount.innerText = '1 Camera';
     document.title = `${streams[0]} - go2rtc`;
+
+    if (window.StreamQuality && allStreams.length > 0) {
+        const pairInfo = window.StreamQuality.getPairInfo(streams[0], allStreams);
+        if (pairInfo && navQualitySwitch) {
+            navQualitySwitch.classList.remove('hidden');
+            const updateNavQuality = (q) => {
+                navQualitySwitch.querySelectorAll('.quality-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.quality === q);
+                });
+            };
+            updateNavQuality(pairInfo.currentQuality);
+            navQualitySwitch.querySelectorAll('.quality-btn').forEach(btn => {
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    const frame = container.querySelector('camera-frame');
+                    if (frame) frame.switchQuality(btn.dataset.quality);
+                };
+            });
+        }
+    }
 } else if (streams.length > 1) {
     navTitle.innerText = 'Multiview Monitor';
     navCount.innerText = `${streams.length} Cameras • Drag to sort`;
     navCount.title = 'Sortable: Drag cameras or use arrow controls. The URL updates automatically so you can bookmark your layout.';
     document.title = `${streams.join(' / ')} - go2rtc`;
+    if (navQualitySwitch) navQualitySwitch.classList.add('hidden');
 }
 
 // Global fullscreen toggle
@@ -106,7 +138,36 @@ streams.forEach((streamName, i) => {
     if (customWidth) {
         frame.style.flex = `1 0 ${customWidth}`;
     }
+    if (window.StreamQuality && allStreams.length > 0) {
+        const pair = window.StreamQuality.getPairInfo(streamName, allStreams);
+        if (pair) {
+            frame.setQualityPair(pair);
+        }
+    }
+
     container.appendChild(frame);
+});
+
+// Delegate resolution quality changes from <camera-frame>
+container.addEventListener('qualitychange', (e) => {
+    const { src, quality } = e.detail;
+    if (streams.length === 1) {
+        navTitle.innerText = src;
+        document.title = `${src} - go2rtc`;
+
+        if (navQualitySwitch) {
+            navQualitySwitch.querySelectorAll('.quality-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.quality === quality);
+            });
+        }
+
+        const currentParams = new URLSearchParams(location.search);
+        currentParams.set('src', src);
+        const newUrl = `${location.pathname}?${currentParams.toString()}`;
+        window.history.replaceState(null, '', newUrl);
+    } else {
+        updateURLOrder();
+    }
 });
 
 // Multi-camera sorting & URL bookmarking support
@@ -301,6 +362,10 @@ const showShortcutsModal = () => {
                     <div class="shortcut-desc">Reconnect all active streams</div>
                 </div>
                 <div class="shortcut-row">
+                    <div class="shortcut-keys"><kbd class="shortcut-kbd">Q</kbd></div>
+                    <div class="shortcut-desc">Toggle HD / SD resolution on camera</div>
+                </div>
+                <div class="shortcut-row">
                     <div class="shortcut-keys"><kbd class="shortcut-kbd">?</kbd></div>
                     <div class="shortcut-desc">Show this keyboard shortcuts guide</div>
                 </div>
@@ -407,6 +472,19 @@ document.addEventListener('keydown', (e) => {
                 const unmuted = hovered.toggleMute?.();
                 window.showToast?.(`${hovered.title || 'Camera 1'}: ${unmuted ? 'Unmuted 🔊' : 'Muted 🔇'}`, 'info', 1500);
             }
+        }
+        return;
+    }
+
+    // Q: Toggle HD/SD resolution on focused or fullscreen camera
+    if (key === 'q' || key === 'Q') {
+        e.preventDefault();
+        const targetFrame = fsFrame || frames.find(f => f.matches(':hover')) || frames[0];
+        if (targetFrame && targetFrame._pairInfo) {
+            const currentQ = targetFrame._pairInfo.currentQuality || 'hd';
+            const nextQ = currentQ === 'hd' ? 'sd' : 'hd';
+            targetFrame.switchQuality(nextQ);
+            window.showToast?.(`${targetFrame.title}: Switched to ${nextQ.toUpperCase()}`, 'info', 1500);
         }
         return;
     }

@@ -1,5 +1,5 @@
 const params = new URLSearchParams(location.search);
-const streamName = params.get('src') || params.get('dst') || 'WebRTC Stream';
+let currentStreamName = params.get('src') || params.get('dst') || 'WebRTC Stream';
 const media = params.get('media') || 'video+audio';
 
 // Embed mode check: ?header=false or ?nav=false or ?nav=0 hides top navbar
@@ -8,21 +8,69 @@ if (params.get('header') === 'false' || params.get('nav') === 'false' || params.
 }
 
 // Set titles
-const titleText = streamName;
+let titleText = currentStreamName;
 document.title = `${titleText} (WebRTC) - go2rtc`;
 document.getElementById('nav-title').textContent = titleText;
 document.getElementById('nav-mode').textContent = media.replace(/\+/g, ' • ');
 
 const frame = document.getElementById('stream-frame');
 const video = document.getElementById('video');
+const navQualitySwitch = document.getElementById('nav-quality-switch');
 
 if (params.get('src')) {
-    frame.src = params.get('src');
+    frame.src = currentStreamName;
     frame.title = titleText;
-    document.getElementById('btn-back').href = `links.html?src=${encodeURIComponent(params.get('src'))}`;
+    document.getElementById('btn-back').href = `links.html?src=${encodeURIComponent(currentStreamName)}`;
 } else {
     frame.title = titleText;
 }
+
+// Resolution switching support
+if (window.StreamQuality && currentStreamName) {
+    window.StreamQuality.fetchStreamsList().then(allStreams => {
+        const pairInfo = window.StreamQuality.getPairInfo(currentStreamName, allStreams);
+        if (pairInfo) {
+            frame.setQualityPair(pairInfo);
+
+            if (navQualitySwitch) {
+                navQualitySwitch.classList.remove('hidden');
+                const updateNavQuality = (q) => {
+                    navQualitySwitch.querySelectorAll('.quality-btn').forEach(btn => {
+                        btn.classList.toggle('active', btn.dataset.quality === q);
+                    });
+                };
+                updateNavQuality(pairInfo.currentQuality);
+                navQualitySwitch.querySelectorAll('.quality-btn').forEach(btn => {
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        frame.switchQuality(btn.dataset.quality);
+                    };
+                });
+            }
+        }
+    });
+}
+
+frame.addEventListener('qualitychange', (e) => {
+    const { src, quality } = e.detail;
+    currentStreamName = src;
+    titleText = src;
+    document.title = `${src} (WebRTC) - go2rtc`;
+    document.getElementById('nav-title').textContent = src;
+    document.getElementById('btn-back').href = `links.html?src=${encodeURIComponent(src)}`;
+
+    if (navQualitySwitch) {
+        navQualitySwitch.querySelectorAll('.quality-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.quality === quality);
+        });
+    }
+
+    const u = new URL(location.href);
+    u.searchParams.set('src', src);
+    window.history.replaceState(null, '', u.toString());
+
+    connect(media);
+});
 
 // Global fullscreen button
 document.getElementById('btn-fullscreen').addEventListener('click', () => {

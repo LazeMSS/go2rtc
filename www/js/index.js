@@ -201,15 +201,22 @@ function updatePlayLinks() {
 streamBtn.addEventListener('click', () => {
     const url = new URL('stream.html', location.href);
 
-    const streams = document.querySelectorAll('#streams input[type="checkbox"][name]');
-    streams.forEach(i => {
-        if (i.checked) url.searchParams.append('src', i.name);
+    const checkedStreams = [];
+    document.querySelectorAll('#streams input[type="checkbox"][name]').forEach(i => {
+        if (i.checked) checkedStreams.push(i.name);
     });
 
-    if (!url.searchParams.has('src')) {
+    if (checkedStreams.length === 0) {
         window.showToast('Please select at least one stream to play.', 'warning');
         return;
     }
+
+    // Group any HD/SD pairs so only one entry is streamed, defaulting to the first config entry
+    const finalStreams = window.StreamQuality
+        ? window.StreamQuality.groupStreams(checkedStreams, configOrder)
+        : checkedStreams;
+
+    finalStreams.forEach(s => url.searchParams.append('src', s));
 
     const mode = getSelectedModes();
     if (mode) {
@@ -357,6 +364,9 @@ function updateStreamsTable(data) {
         }
     }
     configOrder = configOrder.filter(name => Object.prototype.hasOwnProperty.call(data, name));
+    if (window.StreamQuality) {
+        window.StreamQuality.setStreamsList(configOrder);
+    }
 
     for (const [key, value] of streamEntries) {
 
@@ -369,6 +379,15 @@ function updateStreamsTable(data) {
         if (online > 0) liveCount++;
         const src = encodeURIComponent(name);
         const modeParam = getSelectedModesParam();
+
+        let qualityBadge = '';
+        if (window.StreamQuality) {
+            const pairInfo = window.StreamQuality.getPairInfo(name, configOrder);
+            if (pairInfo) {
+                const qUpper = pairInfo.currentQuality.toUpperCase();
+                qualityBadge = `<span class="badge-resolution badge-${pairInfo.currentQuality}" title="${qUpper} stream (counterpart: ${pairInfo.counterpart})">${qUpper}</span>`;
+            }
+        }
 
         if (!tr) {
             tr = document.createElement('tr');
@@ -406,6 +425,7 @@ function updateStreamsTable(data) {
                         ${online > 0 ? `<span class="status-count-mini">${online}</span>` : ''}
                     </span>
                     <a href="stream.html?src=${src}${modeParam}" data-src="${src}" class="stream-name-title" title="Open stream viewer">${name}</a>
+                    ${qualityBadge}
                 </div>
             </td>
             <td class="col-status">

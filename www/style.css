@@ -1880,6 +1880,75 @@ camera-frame,
     border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
+/* Quality Switch Segmented Control */
+.stream-quality-switch {
+    display: inline-flex;
+    align-items: center;
+    background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
+    border-radius: var(--radius-sm, 6px);
+    padding: 2px;
+    gap: 2px;
+    user-select: none;
+    line-height: 1;
+}
+
+.quality-btn {
+    appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary, #9ca3af);
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 3px 7px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.quality-btn:hover:not(.active) {
+    color: var(--text-primary, #ffffff);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.quality-btn.active {
+    background: var(--primary, #3b82f6);
+    color: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.nav-quality-switch {
+    margin-left: 8px;
+}
+
+/* Resolution Badge for Stream Table */
+.badge-resolution {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    letter-spacing: 0.05em;
+    vertical-align: middle;
+    display: inline-block;
+    line-height: 1;
+}
+
+.badge-hd {
+    background: rgba(59, 130, 246, 0.18);
+    color: var(--accent-blue, #60a5fa);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.badge-sd {
+    background: rgba(168, 85, 247, 0.18);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
 .stream-frame-btn {
     display: inline-flex;
     align-items: center;

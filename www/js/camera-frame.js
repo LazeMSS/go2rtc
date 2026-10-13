@@ -31,6 +31,8 @@ class CameraFrame extends HTMLElement {
         this._showLinks = true;
         this._hasUnmute = false;
         this._rendered = false;
+        this._pairInfo = null;
+        this._qualitySwitchEl = null;
 
         this._onFullscreenChange = this._onFullscreenChange.bind(this);
     }
@@ -123,6 +125,12 @@ class CameraFrame extends HTMLElement {
         if (!this._rendered) {
             this._render();
         }
+        if (!this._pairInfo && this.src && window.StreamQuality) {
+            const pair = window.StreamQuality.getPairInfo(this.src);
+            if (pair) {
+                this.setQualityPair(pair);
+            }
+        }
         document.addEventListener('fullscreenchange', this._onFullscreenChange);
     }
 
@@ -186,6 +194,10 @@ class CameraFrame extends HTMLElement {
                     <span class="stream-title-text">${this.title}</span>
                 </div>
                 <div class="stream-frame-actions">
+                    <div class="stream-quality-switch hidden" role="group" aria-label="Stream Resolution">
+                        <button type="button" class="quality-btn" data-quality="hd" title="Switch to High Definition (HD)">HD</button>
+                        <button type="button" class="quality-btn" data-quality="sd" title="Switch to Standard Definition (SD)">SD</button>
+                    </div>
                     <span class="stream-mode-badge badge-state-info">CONNECTING</span>
                     <button type="button" class="stream-frame-btn btn-unmute ${this.hasAttribute('has-unmute') ? '' : 'hidden'}" title="Click to unmute audio" aria-label="Toggle audio">
                         <svg class="icon-muted" viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
@@ -209,11 +221,22 @@ class CameraFrame extends HTMLElement {
         this._reorderGroup = this.querySelector('.stream-reorder-group');
         this._btnPrev = this.querySelector('.btn-move-prev');
         this._btnNext = this.querySelector('.btn-move-next');
+        this._qualitySwitchEl = this.querySelector('.stream-quality-switch');
         this._badgeEl = this.querySelector('.stream-mode-badge');
         this._btnUnmute = this.querySelector('.btn-unmute');
         this._btnLinks = this.querySelector('.btn-links');
         this._btnFs = this.querySelector('.btn-fs');
         this._bodyEl = this.querySelector('.stream-frame-body');
+
+        // Quality switch button listeners
+        if (this._qualitySwitchEl) {
+            this._qualitySwitchEl.querySelectorAll('.quality-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.switchQuality(btn.dataset.quality);
+                });
+            });
+        }
 
         // Reorder button listeners
         this._btnPrev.addEventListener('click', (e) => {
@@ -379,6 +402,84 @@ class CameraFrame extends HTMLElement {
     setMoveButtonsDisabled({ prevDisabled = false, nextDisabled = false } = {}) {
         if (this._btnPrev) this._btnPrev.disabled = prevDisabled;
         if (this._btnNext) this._btnNext.disabled = nextDisabled;
+    }
+
+    /**
+     * Configure stream resolution pairing info (HD/SD).
+     * @param {Object} pairInfo
+     */
+    setQualityPair(pairInfo) {
+        this._pairInfo = pairInfo;
+        this._updateQualitySwitch();
+    }
+
+    _updateQualitySwitch() {
+        if (!this._qualitySwitchEl) {
+            this._qualitySwitchEl = this.querySelector('.stream-quality-switch');
+        }
+        if (!this._qualitySwitchEl) return;
+
+        if (!this._pairInfo || !this._pairInfo.hasPair) {
+            this._qualitySwitchEl.classList.add('hidden');
+            return;
+        }
+
+        this._qualitySwitchEl.classList.remove('hidden');
+        const curr = (this._pairInfo.currentQuality || 'hd').toLowerCase();
+
+        const btnHd = this._qualitySwitchEl.querySelector('[data-quality="hd"]');
+        const btnSd = this._qualitySwitchEl.querySelector('[data-quality="sd"]');
+
+        if (btnHd) btnHd.classList.toggle('active', curr === 'hd');
+        if (btnSd) btnSd.classList.toggle('active', curr === 'sd');
+    }
+
+    /**
+     * Switch stream quality between 'hd' and 'sd'.
+     * @param {'hd'|'sd'} targetQuality
+     */
+    switchQuality(targetQuality) {
+        if (!this._pairInfo || !this._pairInfo.hasPair) return;
+        targetQuality = (targetQuality || '').toLowerCase();
+        if (this._pairInfo.currentQuality === targetQuality) return;
+
+        const newSrc = targetQuality === 'hd' ? this._pairInfo.hdStream : this._pairInfo.sdStream;
+        this._pairInfo.currentQuality = targetQuality;
+        this._pairInfo.currentStream = newSrc;
+
+        this._src = newSrc;
+        this.setAttribute('src', newSrc);
+        this.dataset.src = newSrc;
+
+        if (this._titleEl) {
+            this._titleEl.textContent = newSrc;
+        }
+        if (this._titleWrap) {
+            this._titleWrap.title = newSrc;
+        }
+
+        this._updateQualitySwitch();
+
+        // If using video-stream, reconnect with new source
+        const vs = this.querySelector('video-stream');
+        if (vs) {
+            this.setBadge('CONNECTING', 'info', 'Switching resolution...');
+            vs.src = new URL('api/ws?src=' + encodeURIComponent(newSrc), location.href);
+        }
+
+        if (this._btnLinks) {
+            this._btnLinks.href = `links.html?src=${encodeURIComponent(newSrc)}`;
+        }
+
+        this.dispatchEvent(new CustomEvent('qualitychange', {
+            bubbles: true,
+            composed: true,
+            detail: {
+                src: newSrc,
+                quality: targetQuality,
+                pairInfo: this._pairInfo
+            }
+        }));
     }
 
     _onFullscreenChange() {

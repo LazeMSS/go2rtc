@@ -427,6 +427,128 @@
 
     window.checkHardwareAcceleration = checkHardwareAcceleration;
 
+    // Stream Resolution Pairing & Switching Helper (*_hd / *_sd)
+    window.StreamQuality = {
+        _cachedStreams: null,
+        _fetchPromise: null,
+
+        async fetchStreamsList() {
+            if (this._cachedStreams) return this._cachedStreams;
+            if (this._fetchPromise) return this._fetchPromise;
+
+            this._fetchPromise = fetch(new URL('api/streams', location.href), { cache: 'no-cache' })
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    this._cachedStreams = data ? Object.keys(data) : [];
+                    this._fetchPromise = null;
+                    return this._cachedStreams;
+                })
+                .catch(err => {
+                    console.warn('Failed to fetch streams list:', err);
+                    this._fetchPromise = null;
+                    return [];
+                });
+
+            return this._fetchPromise;
+        },
+
+        setStreamsList(list) {
+            if (Array.isArray(list)) {
+                this._cachedStreams = list;
+            } else if (list && typeof list === 'object') {
+                this._cachedStreams = Object.keys(list);
+            }
+        },
+
+        parseQuality(name) {
+            if (!name || typeof name !== 'string') return null;
+            const m = name.match(/^(.*?)([_ \-\.])(hd|sd)$/i);
+            if (!m) return null;
+            return {
+                baseName: m[1],
+                separator: m[2],
+                quality: m[3].toLowerCase(),
+                isUpper: m[3] === m[3].toUpperCase()
+            };
+        },
+
+        getCounterpart(name) {
+            const info = this.parseQuality(name);
+            if (!info) return null;
+            const otherQuality = info.quality === 'hd' ? 'sd' : 'hd';
+            const qualityStr = info.isUpper ? otherQuality.toUpperCase() : otherQuality;
+            return info.baseName + info.separator + qualityStr;
+        },
+
+        getPairInfo(name, allStreams) {
+            const info = this.parseQuality(name);
+            if (!info) return null;
+
+            const streamList = Array.isArray(allStreams)
+                ? allStreams
+                : (allStreams && typeof allStreams === 'object' ? Object.keys(allStreams) : (this._cachedStreams || []));
+
+            const counterpart = this.getCounterpart(name);
+            if (!counterpart || !streamList.includes(counterpart)) {
+                return null;
+            }
+
+            const hdStream = info.quality === 'hd' ? name : counterpart;
+            const sdStream = info.quality === 'sd' ? name : counterpart;
+
+            // Default resolution is the first entry in config file
+            const idxHD = streamList.indexOf(hdStream);
+            const idxSD = streamList.indexOf(sdStream);
+            const defaultStream = (idxHD !== -1 && idxSD !== -1)
+                ? (idxHD <= idxSD ? hdStream : sdStream)
+                : hdStream;
+
+            return {
+                hasPair: true,
+                baseName: info.baseName,
+                currentStream: name,
+                currentQuality: info.quality,
+                hdStream,
+                sdStream,
+                defaultStream,
+                defaultQuality: defaultStream === hdStream ? 'hd' : 'sd',
+                counterpart
+            };
+        },
+
+        groupStreams(requestedStreams, allStreams) {
+            if (!Array.isArray(requestedStreams) || requestedStreams.length === 0) return [];
+
+            const streamList = Array.isArray(allStreams)
+                ? allStreams
+                : (allStreams && typeof allStreams === 'object' ? Object.keys(allStreams) : (this._cachedStreams || []));
+
+            const result = [];
+            const seenBases = new Set();
+
+            for (const name of requestedStreams) {
+                const pairInfo = this.getPairInfo(name, streamList);
+                if (pairInfo) {
+                    const pairKey = pairInfo.baseName.toLowerCase();
+                    if (seenBases.has(pairKey)) {
+                        continue;
+                    }
+                    seenBases.add(pairKey);
+
+                    const bothRequested = requestedStreams.includes(pairInfo.hdStream) && requestedStreams.includes(pairInfo.sdStream);
+                    if (bothRequested) {
+                        result.push(pairInfo.defaultStream);
+                    } else {
+                        result.push(name);
+                    }
+                } else {
+                    result.push(name);
+                }
+            }
+            return result;
+        }
+    };
+
     const initApp = () => {
         initHeader();
         checkHardwareAcceleration();
