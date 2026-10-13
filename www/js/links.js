@@ -1,5 +1,9 @@
 const src = new URLSearchParams(location.search).get('src')?.replace(/[<">]/g, '') || '';
-document.getElementById('stream-name-display').textContent = src || '(none)';
+const displayName = window.StreamQuality ? window.StreamQuality.getDisplayName(src) : src.replace(/^(.*?)([_ \-\.])(hd|sd)$/i, '$1');
+document.getElementById('stream-name-display').textContent = displayName || src || '(none)';
+if (displayName) {
+    document.title = `${displayName} Links - go2rtc`;
+}
 
 if (!src) {
     document.querySelector('.modern-main').innerHTML = `

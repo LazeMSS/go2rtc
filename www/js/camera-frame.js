@@ -47,7 +47,12 @@ class CameraFrame extends HTMLElement {
     }
 
     get title() {
-        return this.getAttribute('title') || this._title || this.src || 'Stream';
+        const raw = this.getAttribute('title') || this._title || this.src;
+        if (!raw) return 'Stream';
+        if (window.StreamQuality) {
+            return window.StreamQuality.getDisplayName(raw);
+        }
+        return raw.replace(/^(.*?)([_ \-\.])(hd|sd)$/i, '$1');
     }
 
     set title(val) {
@@ -423,8 +428,14 @@ class CameraFrame extends HTMLElement {
      */
     setQualityPair(pairInfo) {
         this._pairInfo = pairInfo;
+        if (pairInfo && pairInfo.baseName) {
+            if (!this._title || this._title === this._src || this.getAttribute('title') === this._src) {
+                this.title = pairInfo.baseName;
+            }
+        }
         if (this._rendered) {
             this._updateQualitySwitch();
+            this._updateTitleAndLinks();
         }
     }
 
@@ -467,17 +478,11 @@ class CameraFrame extends HTMLElement {
         this.setAttribute('src', newSrc);
         this.dataset.src = newSrc;
 
-        if (!this._title || this._title === oldSrc || this.getAttribute('title') === oldSrc) {
-            this.title = newSrc;
+        if (!this._title || this._title === oldSrc || this.getAttribute('title') === oldSrc || (this._pairInfo && this._title === this._pairInfo.baseName)) {
+            this.title = this._pairInfo.baseName || newSrc;
         }
 
-        if (this._titleEl) {
-            this._titleEl.textContent = this.title;
-        }
-        if (this._titleWrap) {
-            this._titleWrap.title = this.title;
-        }
-
+        this._updateTitleAndLinks();
         this._updateQualitySwitch();
 
         // If using video-stream, cleanly teardown previous connection and recreate for the new stream

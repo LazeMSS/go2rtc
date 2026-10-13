@@ -8,7 +8,7 @@ if (params.get('header') === 'false' || params.get('nav') === 'false' || params.
 }
 
 // Set titles
-let titleText = currentStreamName;
+let titleText = window.StreamQuality ? window.StreamQuality.getDisplayName(currentStreamName) : currentStreamName.replace(/^(.*?)([_ \-\.])(hd|sd)$/i, '$1');
 document.title = `${titleText} (WebRTC) - go2rtc`;
 document.getElementById('nav-title').textContent = titleText;
 document.getElementById('nav-mode').textContent = media.replace(/\+/g, ' • ');
@@ -37,9 +37,9 @@ if (window.StreamQuality && currentStreamName) {
 frame.addEventListener('qualitychange', (e) => {
     const { src } = e.detail;
     currentStreamName = src;
-    titleText = src;
-    document.title = `${src} (WebRTC) - go2rtc`;
-    document.getElementById('nav-title').textContent = src;
+    titleText = window.StreamQuality ? window.StreamQuality.getDisplayName(src) : src.replace(/^(.*?)([_ \-\.])(hd|sd)$/i, '$1');
+    document.title = `${titleText} (WebRTC) - go2rtc`;
+    document.getElementById('nav-title').textContent = titleText;
     document.getElementById('btn-back').href = `links.html?src=${encodeURIComponent(src)}`;
 
     const u = new URL(location.href);

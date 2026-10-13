@@ -480,6 +480,17 @@
             return info.baseName + info.separator + qualityStr;
         },
 
+        getBaseName(name) {
+            const info = this.parseQuality(name);
+            return info ? info.baseName : name;
+        },
+
+        getDisplayName(name) {
+            if (!name || typeof name !== 'string') return '';
+            const info = this.parseQuality(name);
+            return info ? info.baseName : name;
+        },
+
         getPairInfo(name, allStreams) {
             const info = this.parseQuality(name);
             if (!info) return null;
@@ -546,6 +557,92 @@
                 }
             }
             return result;
+        },
+
+        groupCatalog(data, configOrder) {
+            if (!data || typeof data !== 'object') return [];
+            const streamList = Array.isArray(configOrder) && configOrder.length > 0
+                ? configOrder
+                : Object.keys(data);
+
+            const items = [];
+            const processedStreams = new Set();
+
+            for (const name of streamList) {
+                if (processedStreams.has(name)) continue;
+
+                const pairInfo = this.getPairInfo(name, streamList);
+                if (pairInfo) {
+                    processedStreams.add(pairInfo.hdStream);
+                    processedStreams.add(pairInfo.sdStream);
+
+                    const valHD = data[pairInfo.hdStream] || {};
+                    const valSD = data[pairInfo.sdStream] || {};
+                    const consumersHD = Array.isArray(valHD.consumers) ? valHD.consumers : [];
+                    const consumersSD = Array.isArray(valSD.consumers) ? valSD.consumers : [];
+                    const totalConsumers = consumersHD.length + consumersSD.length;
+
+                    const activeStream = (consumersHD.length > 0)
+                        ? pairInfo.hdStream
+                        : ((consumersSD.length > 0) ? pairInfo.sdStream : pairInfo.defaultStream);
+
+                    items.push({
+                        id: pairInfo.baseName,
+                        displayName: pairInfo.baseName,
+                        isGroup: true,
+                        hdStream: pairInfo.hdStream,
+                        sdStream: pairInfo.sdStream,
+                        defaultStream: pairInfo.defaultStream,
+                        defaultQuality: pairInfo.defaultQuality,
+                        activeStream,
+                        online: totalConsumers,
+                        streams: [pairInfo.hdStream, pairInfo.sdStream],
+                        valueHD: valHD,
+                        valueSD: valSD
+                    });
+                } else {
+                    processedStreams.add(name);
+
+                    const val = data[name] || {};
+                    const consumers = Array.isArray(val.consumers) ? val.consumers : [];
+
+                    items.push({
+                        id: name,
+                        displayName: name,
+                        isGroup: false,
+                        hdStream: null,
+                        sdStream: null,
+                        defaultStream: name,
+                        defaultQuality: null,
+                        activeStream: name,
+                        online: consumers.length,
+                        streams: [name],
+                        value: val
+                    });
+                }
+            }
+
+            for (const name of Object.keys(data)) {
+                if (processedStreams.has(name)) continue;
+                processedStreams.add(name);
+                const val = data[name] || {};
+                const consumers = Array.isArray(val.consumers) ? val.consumers : [];
+                items.push({
+                    id: name,
+                    displayName: name,
+                    isGroup: false,
+                    hdStream: null,
+                    sdStream: null,
+                    defaultStream: name,
+                    defaultQuality: null,
+                    activeStream: name,
+                    online: consumers.length,
+                    streams: [name],
+                    value: val
+                });
+            }
+
+            return items;
         }
     };
 

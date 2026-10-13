@@ -1922,16 +1922,34 @@ camera-frame,
 
 
 /* Resolution Badge for Stream Table */
+.stream-quality-badges {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
 .badge-resolution {
     font-size: 0.68rem;
     font-weight: 700;
     padding: 2px 6px;
     border-radius: 4px;
-    margin-left: 6px;
     letter-spacing: 0.05em;
     vertical-align: middle;
     display: inline-block;
-    line-height: 1;
+    line-height: 1.2;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+
+a.badge-resolution {
+    cursor: pointer;
+}
+
+a.badge-resolution:hover {
+    filter: brightness(1.25);
+    transform: translateY(-1px);
 }
 
 .badge-hd {
@@ -1940,10 +1958,20 @@ camera-frame,
     border: 1px solid rgba(59, 130, 246, 0.35);
 }
 
+.badge-hd.active, a.badge-hd:hover {
+    border-color: rgba(59, 130, 246, 0.6);
+    box-shadow: 0 0 6px rgba(59, 130, 246, 0.25);
+}
+
 .badge-sd {
     background: rgba(168, 85, 247, 0.18);
     color: #c084fc;
     border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.badge-sd.active, a.badge-sd:hover {
+    border-color: rgba(168, 85, 247, 0.6);
+    box-shadow: 0 0 6px rgba(168, 85, 247, 0.25);
 }
 
 .stream-frame-btn {

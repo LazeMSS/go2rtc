@@ -31,14 +31,16 @@ const navTitle = document.getElementById('nav-title');
 const navCount = document.getElementById('nav-count');
 
 if (streams.length === 1 && streams[0]) {
-    navTitle.innerText = streams[0];
+    const displayName = window.StreamQuality ? window.StreamQuality.getDisplayName(streams[0]) : streams[0].replace(/^(.*?)([_ \-\.])(hd|sd)$/i, '$1');
+    navTitle.innerText = displayName;
     navCount.innerText = '1 Camera';
-    document.title = `${streams[0]} - go2rtc`;
+    document.title = `${displayName} - go2rtc`;
 } else if (streams.length > 1) {
     navTitle.innerText = 'Multiview Monitor';
     navCount.innerText = `${streams.length} Cameras • Drag to sort`;
     navCount.title = 'Sortable: Drag cameras or use arrow controls. The URL updates automatically so you can bookmark your layout.';
-    document.title = `${streams.join(' / ')} - go2rtc`;
+    const displayNames = streams.map(s => window.StreamQuality ? window.StreamQuality.getDisplayName(s) : s.replace(/^(.*?)([_ \-\.])(hd|sd)$/i, '$1'));
+    document.title = `${displayNames.join(' / ')} - go2rtc`;
 }
 
 // Global fullscreen toggle
@@ -104,7 +106,8 @@ const shiftFullscreenStream = (direction) => {
 streams.forEach((streamName, i) => {
     const frame = document.createElement('camera-frame');
     frame.src = streamName;
-    frame.title = streamName || `Stream ${i + 1}`;
+    const displayName = window.StreamQuality ? window.StreamQuality.getDisplayName(streamName) : streamName.replace(/^(.*?)([_ \-\.])(hd|sd)$/i, '$1');
+    frame.title = displayName || `Stream ${i + 1}`;
     frame.mode = modes[i] || '';
     if (streams.length > 1) {
         frame.sortable = true;
@@ -130,8 +133,9 @@ streams.forEach((streamName, i) => {
 container.addEventListener('qualitychange', (e) => {
     const { src } = e.detail;
     if (streams.length === 1) {
-        navTitle.innerText = src;
-        document.title = `${src} - go2rtc`;
+        const displayName = window.StreamQuality ? window.StreamQuality.getDisplayName(src) : src.replace(/^(.*?)([_ \-\.])(hd|sd)$/i, '$1');
+        navTitle.innerText = displayName;
+        document.title = `${displayName} - go2rtc`;
 
         const currentParams = new URLSearchParams(location.search);
         currentParams.set('src', src);
@@ -173,7 +177,8 @@ if (streams.length > 1) {
         const newUrl = `${location.pathname}?${currentParams.toString()}`;
         window.history.replaceState(null, '', newUrl);
 
-        document.title = `${newStreams.join(' / ')} - go2rtc`;
+        const displayNames = newStreams.map(s => window.StreamQuality ? window.StreamQuality.getDisplayName(s) : s.replace(/^(.*?)([_ \-\.])(hd|sd)$/i, '$1'));
+        document.title = `${displayNames.join(' / ')} - go2rtc`;
         updateMoveButtonStates();
     };
 

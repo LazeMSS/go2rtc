@@ -71,8 +71,10 @@ function applySort() {
         } else if (currentSort === 'desc') {
             return nameB.localeCompare(nameA, undefined, {numeric: true, sensitivity: 'base'});
         } else {
-            const idxA = configOrder.indexOf(nameA);
-            const idxB = configOrder.indexOf(nameB);
+            const streamA = a.dataset.stream || nameA;
+            const streamB = b.dataset.stream || nameB;
+            const idxA = configOrder.indexOf(streamA);
+            const idxB = configOrder.indexOf(streamB);
             const posA = idxA >= 0 ? idxA : 999999;
             const posB = idxB >= 0 ? idxB : 999999;
             return posA - posB;
@@ -259,10 +261,11 @@ function applyFilter() {
     let visibleCount = 0;
 
     rows.forEach(tr => {
-        const name = tr.dataset.id.toLowerCase();
+        const id = (tr.dataset.id || '').toLowerCase();
+        const streams = (tr.dataset.streams || '').toLowerCase();
         const isOnline = tr.dataset.online === 'true';
 
-        const matchesText = !q || name.includes(q);
+        const matchesText = !q || id.includes(q) || streams.includes(q);
         let matchesStatus = true;
         if (currentStatusFilter === 'live') {
             matchesStatus = isOnline;
@@ -305,17 +308,19 @@ tbody.addEventListener('click', async ev => {
     if (!delBtn) return;
 
     ev.preventDefault();
-    const src = decodeURIComponent(delBtn.dataset.name);
+    const src = decodeURIComponent(delBtn.dataset.name || '');
+    const counterpart = delBtn.dataset.counterpart ? decodeURIComponent(delBtn.dataset.counterpart) : null;
+    const displayName = delBtn.dataset.displayName ? decodeURIComponent(delBtn.dataset.displayName) : src;
 
     const confirmed = await window.showModal({
-        title: `Delete Camera "${src}"`,
-        message: `Are you sure you want to delete this camera stream? This action is permanent and will remove it from the active configuration.`,
+        title: `Delete Camera "${displayName}"`,
+        message: `Are you sure you want to delete this camera stream? This action is permanent and will remove ${counterpart ? 'both HD and SD streams' : 'it'} from the active configuration.`,
         icon: 'danger',
         confirmText: 'Delete Camera',
         isDanger: true,
         input: {
-            placeholder: `Type "${src}" to confirm deletion`,
-            expectedValue: src
+            placeholder: `Type "${displayName}" to confirm deletion`,
+            expectedValue: displayName
         }
     });
 
@@ -323,19 +328,24 @@ tbody.addEventListener('click', async ev => {
         return;
     }
 
-    const url = new URL('api/streams', location.href);
-    url.searchParams.set('src', src);
-
-    try {
-        const r = await fetch(url, {method: 'DELETE'});
-        if (r.ok) {
-            reload();
-            window.showToast(`Camera "${src}" was deleted successfully.`, 'success');
-        } else {
-            window.showToast(`Failed to delete camera: ${await r.text()}`, 'error');
+    const toDelete = counterpart ? [src, counterpart] : [src];
+    let allOk = true;
+    for (const s of toDelete) {
+        const url = new URL('api/streams', location.href);
+        url.searchParams.set('src', s);
+        try {
+            const r = await fetch(url, {method: 'DELETE'});
+            if (!r.ok) allOk = false;
+        } catch (_) {
+            allOk = false;
         }
-    } catch (error) {
-        window.showToast(`Network error: ${error.message}`, 'error');
+    }
+
+    if (allOk) {
+        reload();
+        window.showToast(`Camera "${displayName}" was deleted successfully.`, 'success');
+    } else {
+        window.showToast(`Failed to delete camera "${displayName}".`, 'error');
     }
 });
 
@@ -352,9 +362,6 @@ function updateStreamsTable(data) {
     const fetchedIds = [];
     let totalConsumers = 0;
     let liveCount = 0;
-    const streamEntries = Object.entries(data);
-
-    metricTotal.innerText = streamEntries.length;
 
     // Track stream keys in original arrival / config order
     for (const key of Object.keys(data)) {
@@ -368,44 +375,49 @@ function updateStreamsTable(data) {
         window.StreamQuality.setStreamsList(configOrder);
     }
 
-    for (const [key, value] of streamEntries) {
+    const items = window.StreamQuality
+        ? window.StreamQuality.groupCatalog(data, configOrder)
+        : Object.keys(data).map(k => ({
+            id: k,
+            displayName: k,
+            isGroup: false,
+            defaultStream: k,
+            activeStream: k,
+            online: (data[k]?.consumers || []).length,
+            streams: [k],
+            value: data[k]
+        }));
 
-        const name = key.replace(/[<">]/g, ''); // sanitize
-        fetchedIds.push(name);
+    metricTotal.innerText = items.length;
+    const modeParam = getSelectedModesParam();
 
-        let tr = tbody.querySelector(`tr[data-id="${name}"]`);
-        const online = (value && value.consumers) ? value.consumers.length : 0;
-        totalConsumers += online;
-        if (online > 0) liveCount++;
-        const src = encodeURIComponent(name);
-        const modeParam = getSelectedModesParam();
+    for (const item of items) {
+        fetchedIds.push(item.id);
 
-        let qualityBadge = '';
-        if (window.StreamQuality) {
-            const pairInfo = window.StreamQuality.getPairInfo(name, configOrder);
-            if (pairInfo) {
-                const qUpper = pairInfo.currentQuality.toUpperCase();
-                qualityBadge = `<span class="badge-resolution badge-${pairInfo.currentQuality}" title="${qUpper} stream (counterpart: ${pairInfo.counterpart})">${qUpper}</span>`;
-            }
-        }
+        let tr = tbody.querySelector(`tr[data-id="${item.id}"]`);
+        totalConsumers += item.online;
+        if (item.online > 0) liveCount++;
 
         if (!tr) {
             tr = document.createElement('tr');
-            tr.dataset.id = name;
+            tr.dataset.id = item.id;
             tbody.appendChild(tr);
         }
 
-        tr.dataset.online = (online > 0).toString();
-        const isChecked = checkboxStates[name] ? 'checked' : '';
+        tr.dataset.online = (item.online > 0).toString();
+        tr.dataset.stream = item.defaultStream;
+        tr.dataset.streams = item.streams.join(',');
+
+        const isChecked = checkboxStates[item.defaultStream] || (item.isGroup && (checkboxStates[item.hdStream] || checkboxStates[item.sdStream])) ? 'checked' : '';
 
         // Status badge rendering: non-clickable indicator showing pulse dot + count when active, or 'idle'
-        const statusBadge = online > 0
-            ? `<span class="badge badge-online" title="${online} active viewers"><span class="pulse-indicator"></span>${online}</span>`
+        const statusBadge = item.online > 0
+            ? `<span class="badge badge-online" title="${item.online} active viewer${item.online > 1 ? 's' : ''}"><span class="pulse-indicator"></span>${item.online}</span>`
             : `<span class="badge badge-idle" title="No active viewers">idle</span>`;
 
         // Net diagnostic button: enabled only when active consumers exist
-        const netButton = online > 0
-            ? `<a href="net.html?src=${src}" class="action-pill btn-sm" title="Network stats">
+        const netButton = item.online > 0
+            ? `<a href="net.html?src=${encodeURIComponent(item.activeStream)}" class="action-pill btn-sm" title="Network stats (${item.activeStream})">
                 <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
                 <span class="btn-text">Net</span>
             </a>`
@@ -414,24 +426,38 @@ function updateStreamsTable(data) {
                 <span class="btn-text">Net</span>
             </span>`;
 
+        let qualityBadges = '';
+        if (item.isGroup) {
+            qualityBadges = `
+                <span class="stream-quality-badges">
+                    <a href="stream.html?src=${encodeURIComponent(item.hdStream)}${modeParam}" class="badge-resolution badge-hd ${item.defaultStream === item.hdStream ? 'active' : ''}" title="Stream in High Definition (${item.hdStream})">HD</a>
+                    <a href="stream.html?src=${encodeURIComponent(item.sdStream)}${modeParam}" class="badge-resolution badge-sd ${item.defaultStream === item.sdStream ? 'active' : ''}" title="Stream in Standard Definition (${item.sdStream})">SD</a>
+                </span>
+            `;
+        }
+
+        const deleteDataAttrs = item.isGroup
+            ? `data-name="${encodeURIComponent(item.defaultStream)}" data-counterpart="${encodeURIComponent(item.hdStream === item.defaultStream ? item.sdStream : item.hdStream)}" data-display-name="${encodeURIComponent(item.displayName)}"`
+            : `data-name="${encodeURIComponent(item.defaultStream)}"`;
+
         tr.innerHTML = `
             <td class="text-center col-check">
-                <input type="checkbox" name="${name}" ${isChecked}>
+                <input type="checkbox" name="${item.defaultStream}" ${isChecked}>
             </td>
             <td class="col-name">
                 <div class="stream-name-cell">
-                    <span class="status-indicator-inline ${online > 0 ? 'online' : 'idle'}" title="${online > 0 ? `${online} active viewer${online > 1 ? 's' : ''}` : 'Idle'}">
+                    <span class="status-indicator-inline ${item.online > 0 ? 'online' : 'idle'}" title="${item.online > 0 ? `${item.online} active viewer${item.online > 1 ? 's' : ''}` : 'Idle'}">
                         <span class="status-dot-mini"></span>
-                        ${online > 0 ? `<span class="status-count-mini">${online}</span>` : ''}
+                        ${item.online > 0 ? `<span class="status-count-mini">${item.online}</span>` : ''}
                     </span>
-                    <a href="stream.html?src=${src}${modeParam}" data-src="${src}" class="stream-name-title" title="Open stream viewer">${name}</a>
-                    ${qualityBadge}
+                    <a href="stream.html?src=${encodeURIComponent(item.defaultStream)}${modeParam}" data-src="${encodeURIComponent(item.defaultStream)}" class="stream-name-title" title="Open stream viewer (${item.defaultStream})">${item.displayName}</a>
+                    ${qualityBadges}
                 </div>
             </td>
             <td class="col-status">
                 <div class="status-group">
                     ${statusBadge}
-                    <a href="api/streams?src=${src}&video=all&audio=all&microphone" class="action-pill btn-sm" title="Probe codecs">
+                    <a href="api/streams?src=${encodeURIComponent(item.defaultStream)}&video=all&audio=all&microphone" class="action-pill btn-sm" title="Probe codecs">
                         <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
                         <span class="btn-text">Probe</span>
                     </a>
@@ -440,15 +466,15 @@ function updateStreamsTable(data) {
             </td>
             <td class="text-right col-actions">
                 <div class="actions-cell actions-cell-right">
-                    <a href="stream.html?src=${src}${modeParam}" data-src="${src}" class="action-pill action-stream" title="Live stream">
+                    <a href="stream.html?src=${encodeURIComponent(item.defaultStream)}${modeParam}" data-src="${encodeURIComponent(item.defaultStream)}" class="action-pill action-stream" title="Live stream">
                         <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                         <span class="btn-text">Stream</span>
                     </a>
-                    <a href="links.html?src=${src}" class="action-pill" title="Stream URLs & embeds">
+                    <a href="links.html?src=${encodeURIComponent(item.defaultStream)}" class="action-pill" title="Stream URLs & embeds">
                         <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
                         <span class="btn-text">Links</span>
                     </a>
-                    <a href="#" data-name="${src}" data-action="delete" class="action-pill action-delete" title="Delete stream">
+                    <a href="#" ${deleteDataAttrs} data-action="delete" class="action-pill action-delete" title="Delete stream">
                         <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
                         <span class="btn-text">Delete</span>
                     </a>
