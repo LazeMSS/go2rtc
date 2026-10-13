@@ -2,8 +2,11 @@ package arenti
 
 import (
 	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -117,5 +120,107 @@ func TestResolveBaseURL(t *testing.T) {
 	// Server override
 	if url := ResolveBaseURL("US", "eu", "https://custom.arenti.net/"); url != "https://custom.arenti.net" {
 		t.Fatalf("expected server override, got %s", url)
+	}
+}
+
+func TestFormatAPIError(t *testing.T) {
+	if err := FormatAPIError("1001", "OK"); err != nil {
+		t.Fatalf("expected nil for code 1001, got %v", err)
+	}
+
+	if err := FormatAPIError("1017", ""); err == nil || !strings.Contains(err.Error(), "incorrect password") {
+		t.Fatalf("expected incorrect password error for 1017, got %v", err)
+	}
+
+	if err := FormatAPIError("1018", ""); err == nil || !strings.Contains(err.Error(), "account does not exist") {
+		t.Fatalf("expected account does not exist error for 1018, got %v", err)
+	}
+
+	if err := FormatAPIError("1023", ""); err == nil || !strings.Contains(err.Error(), "authentication failed") {
+		t.Fatalf("expected authentication failed error for 1023, got %v", err)
+	}
+
+	if err := FormatAPIError("9999", ""); err == nil || !strings.Contains(err.Error(), "unknown server error (code 9999)") {
+		t.Fatalf("expected unknown server error for 9999, got %v", err)
+	}
+
+	// Verify checkError clears UserToken on 1023
+	client := NewClient("user@example.com", "pass", "EU")
+	client.UserToken = "active-token"
+	_ = client.checkError("1023", "")
+	if client.UserToken != "" {
+		t.Fatalf("expected UserToken to be cleared on 1023, got %q", client.UserToken)
+	}
+}
+
+func TestRetryOnCode1023(t *testing.T) {
+	var loginCalls int32
+	var listCalls int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/ipc_web/user/login":
+			atomic.AddInt32(&loginCalls, 1)
+			_, _ = w.Write([]byte(`{"code":"1001","msg":"OK","data":{"userID":12345,"userToken":"fresh-token-456"}}`))
+		case "/ipc_web/device/list":
+			call := atomic.AddInt32(&listCalls, 1)
+			if call == 1 {
+				// Simulate session invalidated by another login
+				_, _ = w.Write([]byte(`{"code":"1023","msg":"session invalidated"}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"code":"1001","msg":"OK","data":{"ipc":[{"deviceID":999,"deviceName":"Cam1"}]}}`))
+		}
+	}))
+	defer srv.Close()
+
+	client := NewClient("user@example.com", "SecretPass123", "EU")
+	client.SetBaseURL(srv.URL)
+	client.UserID = 12345
+	client.UserToken = "stale-token-000"
+
+	devices, err := client.GetDevices()
+	if err != nil {
+		t.Fatalf("expected GetDevices to succeed after 1023 retry, got error: %v", err)
+	}
+	if len(devices) != 1 || devices[0].DeviceName != "Cam1" {
+		t.Fatalf("unexpected devices returned: %+v", devices)
+	}
+	if atomic.LoadInt32(&loginCalls) != 1 {
+		t.Fatalf("expected 1 re-login call, got %d", loginCalls)
+	}
+	if atomic.LoadInt32(&listCalls) != 2 {
+		t.Fatalf("expected 2 device list calls, got %d", listCalls)
+	}
+	if client.UserToken != "fresh-token-456" {
+		t.Fatalf("expected updated token 'fresh-token-456', got %q", client.UserToken)
+	}
+}
+
+func TestParseChannelStream(t *testing.T) {
+	tests := []struct {
+		url     string
+		channel int
+		stream  int
+	}{
+		{"arenti://camera1", 1, 0},
+		{"arenti://camera1?stream=0", 1, 0},
+		{"arenti://camera1?stream=hd", 1, 0},
+		{"arenti://camera1?stream=main", 1, 0},
+		{"arenti://camera1?stream=1", 1, 1},
+		{"arenti://camera1?stream=sd", 1, 1},
+		{"arenti://camera1?stream=sub", 1, 1},
+		{"arenti://camera1?subtype=1", 1, 1},
+		{"arenti://camera1?channel=2", 2, 0},
+		{"arenti://camera1?channel=3&stream=sd", 3, 1},
+		{"arenti://camera1?stream=sd#comment", 1, 1},
+	}
+
+	for _, tt := range tests {
+		ch, st := ParseChannelStream(tt.url)
+		if ch != tt.channel || st != tt.stream {
+			t.Errorf("ParseChannelStream(%q) = (%d, %d), expected (%d, %d)", tt.url, ch, st, tt.channel, tt.stream)
+		}
 	}
 }
