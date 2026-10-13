@@ -148,7 +148,9 @@ async function connect(media) {
         const pc = await PeerConnection(media);
         currentPc = pc;
 
-        const url = new URL('api/ws' + location.search, location.href);
+        const searchParams = new URLSearchParams(location.search);
+        searchParams.set('src', currentStreamName);
+        const url = new URL('api/ws?' + searchParams.toString(), location.href);
         const ws = new WebSocket('ws' + url.toString().substring(4));
         currentWs = ws;
 

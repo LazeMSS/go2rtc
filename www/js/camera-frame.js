@@ -296,6 +296,11 @@ class CameraFrame extends HTMLElement {
         });
 
         this._bodyEl.appendChild(video);
+
+        const innerVideo = video.video || video.querySelector('video');
+        if (innerVideo) {
+            innerVideo.addEventListener('volumechange', () => this._syncUnmuteState());
+        }
     }
 
     _updateBadgeFromState(mode, status) {
@@ -475,11 +480,30 @@ class CameraFrame extends HTMLElement {
 
         this._updateQualitySwitch();
 
-        // If using video-stream, reconnect with new source
+        // If using video-stream, cleanly teardown previous connection and recreate for the new stream
         const vs = this.querySelector('video-stream');
         if (vs) {
+            const wasMuted = this.video ? this.video.muted : true;
             this.setBadge('CONNECTING', 'info', 'Switching resolution...');
-            vs.src = new URL('api/ws?src=' + encodeURIComponent(newSrc), location.href);
+            if (vs.reconnectTID) {
+                clearTimeout(vs.reconnectTID);
+                vs.reconnectTID = 0;
+            }
+            if (vs.disconnectTID) {
+                clearTimeout(vs.disconnectTID);
+                vs.disconnectTID = 0;
+            }
+            try {
+                vs.ondisconnect?.();
+            } catch (err) {
+                console.warn('Error during ondisconnect:', err);
+            }
+            vs.remove();
+
+            this._createVideoStream();
+            if (!wasMuted) {
+                setTimeout(() => this.setMuted(false), 50);
+            }
         }
 
         if (this._btnLinks) {
